@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use gabon_shared::config::JwtConfig;
 use gabon_shared::error::AppError;
-use gabon_shared::traits::{AuthRepo, CustomerRow};
+use gabon_shared::traits::{AuthRepo, CustomerRow, TokenStore};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
@@ -50,11 +50,13 @@ impl From<CustomerRow> for CustomerProfile {
 #[serde(rename_all = "camelCase")]
 pub struct AuthResponse {
     pub access_token: String,
+    pub refresh_token: String,
     pub profile: CustomerProfile,
 }
 
 pub async fn register(
     repo: &impl AuthRepo,
+    store: &impl TokenStore,
     jwt_config: &JwtConfig,
     username: &str,
     password: &str,
@@ -68,16 +70,19 @@ pub async fn register(
         bcrypt::hash(password, bcrypt::DEFAULT_COST).map_err(|e| AppError::Internal(e.to_string()))?;
 
     let customer = repo.create(username, &password_hash).await?;
-    let token = sign_access_token(&customer, jwt_config)?;
+    let access_token = sign_access_token(&customer, jwt_config)?;
+    let refresh_token = crate::token::issue_refresh_token(store, jwt_config, customer.id).await?;
 
     Ok(AuthResponse {
-        access_token: token,
+        access_token,
+        refresh_token,
         profile: customer.into(),
     })
 }
 
 pub async fn login(
     repo: &impl AuthRepo,
+    store: &impl TokenStore,
     jwt_config: &JwtConfig,
     username: &str,
     password: &str,
@@ -94,10 +99,12 @@ pub async fn login(
     }
 
     repo.update_last_login(customer.id).await?;
-    let token = sign_access_token(&customer, jwt_config)?;
+    let access_token = sign_access_token(&customer, jwt_config)?;
+    let refresh_token = crate::token::issue_refresh_token(store, jwt_config, customer.id).await?;
 
     Ok(AuthResponse {
-        access_token: token,
+        access_token,
+        refresh_token,
         profile: customer.into(),
     })
 }
@@ -165,9 +172,53 @@ pub(crate) fn sign_access_token(customer: &CustomerRow, config: &JwtConfig) -> R
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::sync::Mutex;
 
     use super::*;
+
+    struct MockTokenStore {
+        refresh_tokens: Mutex<HashMap<String, i64>>,
+        blacklist: Mutex<Vec<String>>,
+    }
+
+    impl MockTokenStore {
+        fn new() -> Self {
+            Self {
+                refresh_tokens: Mutex::new(HashMap::new()),
+                blacklist: Mutex::new(vec![]),
+            }
+        }
+    }
+
+    impl TokenStore for MockTokenStore {
+        async fn store_refresh_token(&self, token: &str, user_id: i64, _ttl: u64) -> Result<(), AppError> {
+            self.refresh_tokens.lock().unwrap().insert(token.to_string(), user_id);
+            Ok(())
+        }
+        async fn get_refresh_token_user(&self, token: &str) -> Result<Option<i64>, AppError> {
+            Ok(self.refresh_tokens.lock().unwrap().get(token).copied())
+        }
+        async fn delete_refresh_token(&self, token: &str) -> Result<(), AppError> {
+            self.refresh_tokens.lock().unwrap().remove(token);
+            Ok(())
+        }
+        async fn rotate_refresh_token(&self, old: &str, new: &str, ttl: u64) -> Result<Option<i64>, AppError> {
+            let uid = self.get_refresh_token_user(old).await?;
+            if let Some(id) = uid {
+                self.delete_refresh_token(old).await?;
+                self.store_refresh_token(new, id, ttl).await?;
+            }
+            Ok(uid)
+        }
+        async fn blacklist_access_token(&self, token: &str, _ttl: u64) -> Result<(), AppError> {
+            self.blacklist.lock().unwrap().push(token.to_string());
+            Ok(())
+        }
+        async fn is_blacklisted(&self, token: &str) -> Result<bool, AppError> {
+            Ok(self.blacklist.lock().unwrap().contains(&token.to_string()))
+        }
+    }
 
     fn test_jwt_config() -> JwtConfig {
         JwtConfig {
@@ -252,6 +303,10 @@ mod tests {
             Ok(())
         }
 
+        async fn update_avatar(&self, _id: i64, _avatar_url: &str) -> Result<(), AppError> {
+            Ok(())
+        }
+
         async fn update_profile(
             &self,
             id: i64,
@@ -328,19 +383,22 @@ mod tests {
     #[tokio::test]
     async fn register_succeeds_for_new_user() {
         let repo = MockAuthRepo::empty();
+        let store = MockTokenStore::new();
         let config = test_jwt_config();
-        let result = register(&repo, &config, "newuser", "password123").await;
+        let result = register(&repo, &store, &config, "newuser", "password123").await;
         assert!(result.is_ok());
         let resp = result.unwrap();
         assert_eq!(resp.profile.username, "newuser");
         assert!(!resp.access_token.is_empty());
+        assert!(!resp.refresh_token.is_empty());
     }
 
     #[tokio::test]
     async fn register_fails_for_existing_user() {
         let repo = MockAuthRepo::with_customer(test_customer_row());
+        let store = MockTokenStore::new();
         let config = test_jwt_config();
-        let result = register(&repo, &config, "testuser", "password123").await;
+        let result = register(&repo, &store, &config, "testuser", "password123").await;
         assert!(result.is_err());
     }
 
@@ -349,25 +407,29 @@ mod tests {
     #[tokio::test]
     async fn login_succeeds_with_correct_password() {
         let repo = MockAuthRepo::with_customer(test_customer_row());
+        let store = MockTokenStore::new();
         let config = test_jwt_config();
-        let result = login(&repo, &config, "testuser", "password123").await;
+        let result = login(&repo, &store, &config, "testuser", "password123").await;
         assert!(result.is_ok());
         assert!(*repo.last_login_updated.lock().unwrap());
+        assert!(!result.unwrap().refresh_token.is_empty());
     }
 
     #[tokio::test]
     async fn login_fails_with_wrong_password() {
         let repo = MockAuthRepo::with_customer(test_customer_row());
+        let store = MockTokenStore::new();
         let config = test_jwt_config();
-        let result = login(&repo, &config, "testuser", "wrongpass").await;
+        let result = login(&repo, &store, &config, "testuser", "wrongpass").await;
         assert!(result.is_err());
     }
 
     #[tokio::test]
     async fn login_fails_for_nonexistent_user() {
         let repo = MockAuthRepo::empty();
+        let store = MockTokenStore::new();
         let config = test_jwt_config();
-        let result = login(&repo, &config, "nobody", "password123").await;
+        let result = login(&repo, &store, &config, "nobody", "password123").await;
         assert!(result.is_err());
     }
 

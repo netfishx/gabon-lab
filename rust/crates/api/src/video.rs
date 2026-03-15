@@ -42,10 +42,13 @@ pub async fn featured(
 pub async fn my_videos(
     State(state): State<AppState>,
     AuthCustomer(claims): AuthCustomer,
-) -> Result<JsonData<Vec<MyVideoRow>>, AppError> {
+    Query(params): Query<ListParams>,
+) -> Result<JsonData<Paginated<MyVideoRow>>, AppError> {
     let repo = PgVideoRepo { pool: &state.db };
-    let items = repo.list_my(claims.sub).await?;
-    Ok(JsonData::ok(items))
+    let page = params.page.unwrap_or(1);
+    let size = params.size.unwrap_or(20);
+    let (items, total) = repo.list_my(claims.sub, page, size).await?;
+    Ok(JsonData::ok(Paginated::new(items, page, size, total)))
 }
 
 pub async fn like(
@@ -162,11 +165,12 @@ const MAX_VIDEO_SIZE: usize = 200 * 1024 * 1024; // 200 MB
 #[serde(rename_all = "camelCase")]
 pub struct UploadResponse {
     pub resource_url: String,
+    pub video_id: i64,
 }
 
 pub async fn upload(
     State(state): State<AppState>,
-    AuthCustomer(_claims): AuthCustomer,
+    AuthCustomer(claims): AuthCustomer,
     mut multipart: Multipart,
 ) -> Result<JsonData<UploadResponse>, AppError> {
     let field = multipart
@@ -207,7 +211,16 @@ pub async fn upload(
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
-    Ok(JsonData::ok(UploadResponse { resource_url }))
+    let repo = PgVideoRepo { pool: &state.db };
+    let video_id = repo
+        .create_video(claims.sub, None, &resource_url, None, None)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to create video record: {e}");
+            e
+        })?;
+
+    Ok(JsonData::ok(UploadResponse { resource_url, video_id }))
 }
 
 fn mime_to_ext(content_type: &str) -> &str {
@@ -253,8 +266,8 @@ mod tests {
             Ok((vec![], 0))
         }
 
-        async fn list_my(&self, _customer_id: i64) -> Result<Vec<MyVideoRow>, AppError> {
-            Ok(vec![])
+        async fn list_my(&self, _customer_id: i64, _page: i64, _page_size: i64) -> Result<(Vec<MyVideoRow>, i64), AppError> {
+            Ok((vec![], 0))
         }
 
         async fn like(&self, _video_id: i64, _customer_id: i64) -> Result<bool, AppError> {
@@ -290,6 +303,10 @@ mod tests {
 
         async fn list_user_videos(&self, _user_id: i64) -> Result<Vec<VideoListRow>, AppError> {
             Ok(vec![])
+        }
+
+        async fn create_video(&self, _customer_id: i64, _title: Option<&str>, _file_url: &str, _thumbnail_url: Option<&str>, _duration: Option<i32>) -> Result<i64, AppError> {
+            Ok(1)
         }
     }
 
@@ -358,9 +375,11 @@ mod tests {
     fn upload_response_serializes_camel_case() {
         let resp = UploadResponse {
             resource_url: "https://cdn.example.com/videos/123.mp4".into(),
+            video_id: 42,
         };
         let json = serde_json::to_value(&resp).unwrap();
         assert!(json["resourceUrl"].is_string());
+        assert_eq!(json["videoId"], 42);
     }
 
     #[test]

@@ -36,31 +36,59 @@ impl gabon_shared::traits::SocialRepo for PgSocialRepo<'_> {
         Ok(result.rows_affected() > 0)
     }
 
-    async fn get_following(&self, customer_id: i64) -> Result<Vec<FollowRow>, AppError> {
+    async fn get_following(&self, customer_id: i64, page: i64, page_size: i64) -> Result<(Vec<FollowRow>, i64), AppError> {
+        let offset = (page - 1) * page_size;
+
+        let total: i64 = sqlx::query_scalar(
+            r"SELECT COUNT(*)
+               FROM user_follows f JOIN customers c ON f.followed_id = c.id
+               WHERE f.follower_id = $1 AND c.deleted_at IS NULL",
+        )
+        .bind(customer_id)
+        .fetch_one(self.pool)
+        .await?;
+
         let rows = sqlx::query_as::<_, FollowRow>(
             r"SELECT c.id, c.name, c.avatar_url, c.is_vip
                FROM user_follows f JOIN customers c ON f.followed_id = c.id
                WHERE f.follower_id = $1 AND c.deleted_at IS NULL
-               ORDER BY f.created_at DESC",
+               ORDER BY f.created_at DESC
+               LIMIT $2 OFFSET $3",
         )
         .bind(customer_id)
+        .bind(page_size)
+        .bind(offset)
         .fetch_all(self.pool)
         .await?;
 
-        Ok(rows)
+        Ok((rows, total))
     }
 
-    async fn get_followers(&self, customer_id: i64) -> Result<Vec<FollowRow>, AppError> {
+    async fn get_followers(&self, customer_id: i64, page: i64, page_size: i64) -> Result<(Vec<FollowRow>, i64), AppError> {
+        let offset = (page - 1) * page_size;
+
+        let total: i64 = sqlx::query_scalar(
+            r"SELECT COUNT(*)
+               FROM user_follows f JOIN customers c ON f.follower_id = c.id
+               WHERE f.followed_id = $1 AND c.deleted_at IS NULL",
+        )
+        .bind(customer_id)
+        .fetch_one(self.pool)
+        .await?;
+
         let rows = sqlx::query_as::<_, FollowRow>(
             r"SELECT c.id, c.name, c.avatar_url, c.is_vip
                FROM user_follows f JOIN customers c ON f.follower_id = c.id
                WHERE f.followed_id = $1 AND c.deleted_at IS NULL
-               ORDER BY f.created_at DESC",
+               ORDER BY f.created_at DESC
+               LIMIT $2 OFFSET $3",
         )
         .bind(customer_id)
+        .bind(page_size)
+        .bind(offset)
         .fetch_all(self.pool)
         .await?;
 
-        Ok(rows)
+        Ok((rows, total))
     }
 }

@@ -16,6 +16,7 @@ pub trait AuthRepo {
         email: Option<&str>,
         signature: Option<&str>,
     ) -> Result<CustomerRow, AppError>;
+    async fn update_avatar(&self, id: i64, avatar_url: &str) -> Result<(), AppError>;
 }
 
 /// Minimal row type returned by `AuthRepo` — decoupled from domain entity.
@@ -47,7 +48,7 @@ pub trait VideoRepo {
         page: i64,
         page_size: i64,
     ) -> Result<(Vec<VideoListRow>, i64), AppError>;
-    async fn list_my(&self, customer_id: i64) -> Result<Vec<MyVideoRow>, AppError>;
+    async fn list_my(&self, customer_id: i64, page: i64, page_size: i64) -> Result<(Vec<MyVideoRow>, i64), AppError>;
     async fn like(&self, video_id: i64, customer_id: i64) -> Result<bool, AppError>;
     async fn unlike(&self, video_id: i64, customer_id: i64) -> Result<bool, AppError>;
     async fn record_play(
@@ -60,6 +61,14 @@ pub trait VideoRepo {
     /// Delete video. Only `PENDING_REVIEW(3)` videos owned by customer can be deleted.
     async fn delete_video(&self, video_id: i64, customer_id: i64) -> Result<bool, AppError>;
     async fn list_user_videos(&self, user_id: i64) -> Result<Vec<VideoListRow>, AppError>;
+    async fn create_video(
+        &self,
+        customer_id: i64,
+        title: Option<&str>,
+        file_url: &str,
+        thumbnail_url: Option<&str>,
+        duration: Option<i32>,
+    ) -> Result<i64, AppError>;
 }
 
 #[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
@@ -113,8 +122,8 @@ pub struct VideoDetailRow {
 pub trait SocialRepo {
     async fn follow(&self, follower_id: i64, followed_id: i64) -> Result<bool, AppError>;
     async fn unfollow(&self, follower_id: i64, followed_id: i64) -> Result<bool, AppError>;
-    async fn get_following(&self, customer_id: i64) -> Result<Vec<FollowRow>, AppError>;
-    async fn get_followers(&self, customer_id: i64) -> Result<Vec<FollowRow>, AppError>;
+    async fn get_following(&self, customer_id: i64, page: i64, page_size: i64) -> Result<(Vec<FollowRow>, i64), AppError>;
+    async fn get_followers(&self, customer_id: i64, page: i64, page_size: i64) -> Result<(Vec<FollowRow>, i64), AppError>;
 }
 
 /// Follow relationship row with user info.
@@ -207,6 +216,7 @@ pub enum AdminRole {
 pub struct AdminRow {
     pub id: i64,
     pub username: String,
+    #[serde(skip_serializing)]
     pub password_hash: String,
     pub role: i16,
     pub full_name: Option<String>,
@@ -295,6 +305,14 @@ pub trait TokenStore {
     async fn get_refresh_token_user(&self, token: &str) -> Result<Option<i64>, AppError>;
     /// Delete refresh token (consumed after use).
     async fn delete_refresh_token(&self, token: &str) -> Result<(), AppError>;
+    /// Atomically consume old refresh token and issue new one (CAS rotation).
+    /// Returns `Some(user_id)` on success, `None` if old token missing/expired.
+    async fn rotate_refresh_token(
+        &self,
+        old_token: &str,
+        new_token: &str,
+        ttl_secs: u64,
+    ) -> Result<Option<i64>, AppError>;
     /// Blacklist an access token for remaining TTL.
     async fn blacklist_access_token(&self, token: &str, ttl_secs: u64) -> Result<(), AppError>;
     /// Check if access token is blacklisted.

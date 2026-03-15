@@ -82,7 +82,8 @@ pub async fn list_tasks(repo: &impl ActivityRepo, customer_id: i64) -> Result<Ve
 }
 
 fn today_period_key() -> String {
-    chrono::Utc::now().format("%Y-%m-%d").to_string()
+    let cst = chrono::FixedOffset::east_opt(8 * 3600).expect("valid offset");
+    chrono::Utc::now().with_timezone(&cst).format("%Y-%m-%d").to_string()
 }
 
 #[cfg(test)]

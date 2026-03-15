@@ -110,12 +110,12 @@ mod tests {
             Ok(self.unfollow_returns.get())
         }
 
-        async fn get_following(&self, _customer_id: i64) -> Result<Vec<gabon_shared::traits::FollowRow>, AppError> {
-            Ok(vec![])
+        async fn get_following(&self, _customer_id: i64, _page: i64, _page_size: i64) -> Result<(Vec<gabon_shared::traits::FollowRow>, i64), AppError> {
+            Ok((vec![], 0))
         }
 
-        async fn get_followers(&self, _customer_id: i64) -> Result<Vec<gabon_shared::traits::FollowRow>, AppError> {
-            Ok(vec![])
+        async fn get_followers(&self, _customer_id: i64, _page: i64, _page_size: i64) -> Result<(Vec<gabon_shared::traits::FollowRow>, i64), AppError> {
+            Ok((vec![], 0))
         }
     }
 

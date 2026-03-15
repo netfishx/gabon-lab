@@ -40,13 +40,17 @@ pub async fn refresh_handler(
 
 pub async fn logout_handler(
     State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
     AuthCustomer(claims): AuthCustomer,
 ) -> Result<JsonData<()>, AppError> {
+    let raw_token = headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|h| h.strip_prefix("Bearer "))
+        .ok_or(AppError::Unauthorized)?;
     let store = RedisTokenStore { pool: &state.redis };
     let remaining = (claims.exp - chrono::Utc::now().timestamp()).max(0).cast_unsigned();
-    // We need the raw token — extract from header
-    // For simplicity, use claims.exp as remaining TTL indicator
-    logout(&store, &format!("sub:{}", claims.sub), remaining).await?;
+    logout(&store, raw_token, remaining).await?;
     Ok(JsonData::ok(()))
 }
 
@@ -66,21 +70,20 @@ pub async fn issue_refresh_token(
 }
 
 /// Consume a refresh token and issue a new access + refresh token pair.
-/// Old refresh token is deleted (rotation).
+/// Uses atomic CAS rotation to prevent replay attacks.
 pub async fn refresh_access_token(
     store: &impl TokenStore,
     config: &JwtConfig,
     refresh_token: &str,
 ) -> Result<(String, String), AppError> {
+    let new_refresh = uuid::Uuid::new_v4().to_string();
+
+    // Atomic: GET old → DELETE old → SET new (Lua script in Redis impl)
     let user_id = store
-        .get_refresh_token_user(refresh_token)
+        .rotate_refresh_token(refresh_token, &new_refresh, config.customer_refresh_ttl)
         .await?
         .ok_or(AppError::Unauthorized)?;
 
-    // Delete old refresh token (rotation — each token usable once)
-    store.delete_refresh_token(refresh_token).await?;
-
-    // Issue new access token
     let access = crate::service::sign_access_token(
         &gabon_shared::traits::CustomerRow {
             id: user_id,
@@ -96,9 +99,6 @@ pub async fn refresh_access_token(
         },
         config,
     )?;
-
-    // Issue new refresh token
-    let new_refresh = issue_refresh_token(store, config, user_id).await?;
 
     Ok((access, new_refresh))
 }
@@ -162,6 +162,14 @@ mod tests {
         async fn delete_refresh_token(&self, token: &str) -> Result<(), AppError> {
             self.refresh_tokens.lock().unwrap().remove(token);
             Ok(())
+        }
+        async fn rotate_refresh_token(&self, old: &str, new: &str, ttl: u64) -> Result<Option<i64>, AppError> {
+            let uid = self.get_refresh_token_user(old).await?;
+            if let Some(id) = uid {
+                self.delete_refresh_token(old).await?;
+                self.store_refresh_token(new, id, ttl).await?;
+            }
+            Ok(uid)
         }
         async fn blacklist_access_token(&self, token: &str, _ttl: u64) -> Result<(), AppError> {
             self.blacklist.lock().unwrap().push(token.to_string());

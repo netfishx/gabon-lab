@@ -3,6 +3,7 @@ use axum::Json;
 use serde::Deserialize;
 
 use gabon_infra::customer_repo::PgAuthRepo;
+use gabon_infra::redis_store::RedisTokenStore;
 use gabon_shared::error::AppError;
 use gabon_shared::response::JsonData;
 
@@ -21,7 +22,8 @@ pub async fn register(
     Json(body): Json<AuthRequest>,
 ) -> Result<JsonData<service::AuthResponse>, AppError> {
     let repo = PgAuthRepo { pool: &state.db };
-    let result = service::register(&repo, &state.config.jwt, &body.username, &body.password).await?;
+    let store = RedisTokenStore { pool: &state.redis };
+    let result = service::register(&repo, &store, &state.config.jwt, &body.username, &body.password).await?;
     Ok(JsonData::ok(result))
 }
 
@@ -30,7 +32,8 @@ pub async fn login(
     Json(body): Json<AuthRequest>,
 ) -> Result<JsonData<service::AuthResponse>, AppError> {
     let repo = PgAuthRepo { pool: &state.db };
-    let result = service::login(&repo, &state.config.jwt, &body.username, &body.password).await?;
+    let store = RedisTokenStore { pool: &state.redis };
+    let result = service::login(&repo, &store, &state.config.jwt, &body.username, &body.password).await?;
     Ok(JsonData::ok(result))
 }
 

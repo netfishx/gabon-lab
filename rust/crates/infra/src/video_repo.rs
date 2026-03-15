@@ -86,18 +86,30 @@ impl gabon_shared::traits::VideoRepo for PgVideoRepo<'_> {
         Ok((items, total))
     }
 
-    async fn list_my(&self, customer_id: i64) -> Result<Vec<MyVideoRow>, AppError> {
+    async fn list_my(&self, customer_id: i64, page: i64, page_size: i64) -> Result<(Vec<MyVideoRow>, i64), AppError> {
+        let offset = (page - 1) * page_size;
+
+        let total: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM videos WHERE customer_id = $1 AND deleted_at IS NULL",
+        )
+        .bind(customer_id)
+        .fetch_one(self.pool)
+        .await?;
+
         let items = sqlx::query_as::<_, MyVideoRow>(
             r"SELECT id, title, thumbnail_url, file_url, duration, status,
                       like_count, total_clicks, valid_clicks
                FROM videos WHERE customer_id = $1 AND deleted_at IS NULL
-               ORDER BY id DESC",
+               ORDER BY id DESC
+               LIMIT $2 OFFSET $3",
         )
         .bind(customer_id)
+        .bind(page_size)
+        .bind(offset)
         .fetch_all(self.pool)
         .await?;
 
-        Ok(items)
+        Ok((items, total))
     }
 
     async fn like(&self, video_id: i64, customer_id: i64) -> Result<bool, AppError> {
@@ -213,6 +225,22 @@ impl gabon_shared::traits::VideoRepo for PgVideoRepo<'_> {
         .execute(self.pool)
         .await?;
         Ok(result.rows_affected() > 0)
+    }
+
+    async fn create_video(&self, customer_id: i64, title: Option<&str>, file_url: &str, thumbnail_url: Option<&str>, duration: Option<i32>) -> Result<i64, AppError> {
+        let id: i64 = sqlx::query_scalar(
+            r"INSERT INTO videos (customer_id, title, file_url, thumbnail_url, duration, status)
+               VALUES ($1, $2, $3, $4, $5, 3)
+               RETURNING id",
+        )
+        .bind(customer_id)
+        .bind(title)
+        .bind(file_url)
+        .bind(thumbnail_url)
+        .bind(duration)
+        .fetch_one(self.pool)
+        .await?;
+        Ok(id)
     }
 
     async fn list_user_videos(&self, user_id: i64) -> Result<Vec<VideoListRow>, AppError> {

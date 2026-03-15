@@ -1,16 +1,23 @@
-use axum::extract::{Multipart, Path, State};
+use axum::extract::{Multipart, Path, Query, State};
 use axum::Json;
 use serde::Deserialize;
 
 use gabon_infra::customer_repo::PgAuthRepo;
 use gabon_infra::social_repo::PgSocialRepo;
 use gabon_shared::error::AppError;
+use gabon_shared::pagination::Paginated;
 use gabon_shared::response::JsonData;
 use gabon_shared::traits::{AuthRepo, FollowRow, SocialRepo};
 
 use crate::AppState;
 use crate::middleware::AuthCustomer;
 use crate::service::{self, CustomerProfile};
+
+#[derive(Deserialize)]
+pub struct ListParams {
+    pub page: Option<i64>,
+    pub size: Option<i64>,
+}
 
 pub async fn get_profile(
     State(state): State<AppState>,
@@ -24,19 +31,25 @@ pub async fn get_profile(
 pub async fn get_following(
     State(state): State<AppState>,
     AuthCustomer(claims): AuthCustomer,
-) -> Result<JsonData<Vec<FollowRow>>, AppError> {
+    Query(params): Query<ListParams>,
+) -> Result<JsonData<Paginated<FollowRow>>, AppError> {
     let repo = PgSocialRepo { pool: &state.db };
-    let list = repo.get_following(claims.sub).await?;
-    Ok(JsonData::ok(list))
+    let page = params.page.unwrap_or(1);
+    let size = params.size.unwrap_or(20);
+    let (list, total) = repo.get_following(claims.sub, page, size).await?;
+    Ok(JsonData::ok(Paginated::new(list, page, size, total)))
 }
 
 pub async fn get_followers(
     State(state): State<AppState>,
     AuthCustomer(claims): AuthCustomer,
-) -> Result<JsonData<Vec<FollowRow>>, AppError> {
+    Query(params): Query<ListParams>,
+) -> Result<JsonData<Paginated<FollowRow>>, AppError> {
     let repo = PgSocialRepo { pool: &state.db };
-    let list = repo.get_followers(claims.sub).await?;
-    Ok(JsonData::ok(list))
+    let page = params.page.unwrap_or(1);
+    let size = params.size.unwrap_or(20);
+    let (list, total) = repo.get_followers(claims.sub, page, size).await?;
+    Ok(JsonData::ok(Paginated::new(list, page, size, total)))
 }
 
 // ─── /api/users/me/* handlers ─────────────────
@@ -131,6 +144,9 @@ pub async fn upload_avatar(
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
+    let repo = PgAuthRepo { pool: &state.db };
+    repo.update_avatar(claims.sub, &avatar_url).await?;
+
     Ok(JsonData::ok(AvatarResponse { avatar_url }))
 }
 
@@ -139,19 +155,25 @@ pub async fn upload_avatar(
 pub async fn get_user_following(
     State(state): State<AppState>,
     Path(user_id): Path<i64>,
-) -> Result<JsonData<Vec<FollowRow>>, AppError> {
+    Query(params): Query<ListParams>,
+) -> Result<JsonData<Paginated<FollowRow>>, AppError> {
     let repo = PgSocialRepo { pool: &state.db };
-    let list = repo.get_following(user_id).await?;
-    Ok(JsonData::ok(list))
+    let page = params.page.unwrap_or(1);
+    let size = params.size.unwrap_or(20);
+    let (list, total) = repo.get_following(user_id, page, size).await?;
+    Ok(JsonData::ok(Paginated::new(list, page, size, total)))
 }
 
 pub async fn get_user_followers(
     State(state): State<AppState>,
     Path(user_id): Path<i64>,
-) -> Result<JsonData<Vec<FollowRow>>, AppError> {
+    Query(params): Query<ListParams>,
+) -> Result<JsonData<Paginated<FollowRow>>, AppError> {
     let repo = PgSocialRepo { pool: &state.db };
-    let list = repo.get_followers(user_id).await?;
-    Ok(JsonData::ok(list))
+    let page = params.page.unwrap_or(1);
+    let size = params.size.unwrap_or(20);
+    let (list, total) = repo.get_followers(user_id, page, size).await?;
+    Ok(JsonData::ok(Paginated::new(list, page, size, total)))
 }
 
 // ─── Service ───────────────────────────────────
@@ -181,24 +203,26 @@ mod tests {
         async fn follow(&self, _: i64, _: i64) -> Result<bool, AppError> { Ok(true) }
         async fn unfollow(&self, _: i64, _: i64) -> Result<bool, AppError> { Ok(true) }
 
-        async fn get_following(&self, customer_id: i64) -> Result<Vec<FollowRow>, AppError> {
+        async fn get_following(&self, customer_id: i64, _page: i64, _page_size: i64) -> Result<(Vec<FollowRow>, i64), AppError> {
             if customer_id == 1 {
-                Ok(vec![
+                let items = vec![
                     FollowRow { id: 2, name: Some("Bob".into()), avatar_url: None, is_vip: false },
                     FollowRow { id: 3, name: Some("Carol".into()), avatar_url: None, is_vip: true },
-                ])
+                ];
+                Ok((items, 2))
             } else {
-                Ok(vec![])
+                Ok((vec![], 0))
             }
         }
 
-        async fn get_followers(&self, customer_id: i64) -> Result<Vec<FollowRow>, AppError> {
+        async fn get_followers(&self, customer_id: i64, _page: i64, _page_size: i64) -> Result<(Vec<FollowRow>, i64), AppError> {
             if customer_id == 2 {
-                Ok(vec![
+                let items = vec![
                     FollowRow { id: 1, name: Some("Alice".into()), avatar_url: None, is_vip: false },
-                ])
+                ];
+                Ok((items, 1))
             } else {
-                Ok(vec![])
+                Ok((vec![], 0))
             }
         }
     }
@@ -206,31 +230,35 @@ mod tests {
     #[tokio::test]
     async fn get_following_returns_list() {
         let repo = MockSocialRepoWithLists;
-        let list = repo.get_following(1).await.unwrap();
+        let (list, total) = repo.get_following(1, 1, 20).await.unwrap();
         assert_eq!(list.len(), 2);
+        assert_eq!(total, 2);
         assert_eq!(list[0].name, Some("Bob".into()));
     }
 
     #[tokio::test]
     async fn get_following_empty_for_unknown_user() {
         let repo = MockSocialRepoWithLists;
-        let list = repo.get_following(999).await.unwrap();
+        let (list, total) = repo.get_following(999, 1, 20).await.unwrap();
         assert!(list.is_empty());
+        assert_eq!(total, 0);
     }
 
     #[tokio::test]
     async fn get_followers_returns_list() {
         let repo = MockSocialRepoWithLists;
-        let list = repo.get_followers(2).await.unwrap();
+        let (list, total) = repo.get_followers(2, 1, 20).await.unwrap();
         assert_eq!(list.len(), 1);
+        assert_eq!(total, 1);
         assert_eq!(list[0].name, Some("Alice".into()));
     }
 
     #[tokio::test]
     async fn get_followers_empty_for_unknown_user() {
         let repo = MockSocialRepoWithLists;
-        let list = repo.get_followers(999).await.unwrap();
+        let (list, total) = repo.get_followers(999, 1, 20).await.unwrap();
         assert!(list.is_empty());
+        assert_eq!(total, 0);
     }
 
     // ─── Mock AuthRepo for update_profile ─────────
@@ -245,6 +273,7 @@ mod tests {
         }
         async fn update_last_login(&self, _: i64) -> Result<(), AppError> { Ok(()) }
         async fn change_password(&self, _: i64, _: &str) -> Result<(), AppError> { Ok(()) }
+        async fn update_avatar(&self, _: i64, _: &str) -> Result<(), AppError> { Ok(()) }
         async fn update_profile(
             &self,
             id: i64,

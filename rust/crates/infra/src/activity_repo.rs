@@ -20,6 +20,21 @@ impl gabon_shared::traits::ActivityRepo for PgActivityRepo<'_> {
     }
 
     async fn record_sign_in(&self, customer_id: i64, period_key: &str, diamonds: i64) -> Result<i64, AppError> {
+        let mut tx = self.pool.begin().await?;
+
+        // Double-check within transaction to prevent TOCTOU race
+        let exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM customer_sign_in_records WHERE customer_id = $1 AND period_key = $2)",
+        )
+        .bind(customer_id)
+        .bind(period_key)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        if exists {
+            return Err(AppError::Conflict("今日已签到".into()));
+        }
+
         sqlx::query(
             r"INSERT INTO customer_sign_in_records (customer_id, sign_in_date, period_key, diamonds_awarded)
                VALUES ($1, NOW(), $2, $3)",
@@ -27,7 +42,7 @@ impl gabon_shared::traits::ActivityRepo for PgActivityRepo<'_> {
         .bind(customer_id)
         .bind(period_key)
         .bind(diamonds)
-        .execute(self.pool)
+        .execute(&mut *tx)
         .await?;
 
         sqlx::query(
@@ -35,9 +50,10 @@ impl gabon_shared::traits::ActivityRepo for PgActivityRepo<'_> {
         )
         .bind(diamonds)
         .bind(customer_id)
-        .execute(self.pool)
+        .execute(&mut *tx)
         .await?;
 
+        tx.commit().await?;
         Ok(diamonds)
     }
 
@@ -69,24 +85,32 @@ impl gabon_shared::traits::ActivityRepo for PgActivityRepo<'_> {
     }
 
     async fn claim_task(&self, progress_id: i64, customer_id: i64, diamonds: i64) -> Result<(), AppError> {
-        sqlx::query(
+        let mut tx = self.pool.begin().await?;
+
+        // Conditional UPDATE acts as row lock — only one concurrent request can match status=2
+        let result = sqlx::query(
             r"UPDATE task_progress
                SET task_status = 3, claimed_at = NOW(), updated_at = NOW()
                WHERE id = $1 AND customer_id = $2 AND task_status = 2",
         )
         .bind(progress_id)
         .bind(customer_id)
-        .execute(self.pool)
+        .execute(&mut *tx)
         .await?;
+
+        if result.rows_affected() == 0 {
+            return Err(AppError::BadRequest("任务不可领取".into()));
+        }
 
         sqlx::query(
             "UPDATE customers SET diamond_balance = diamond_balance + $1, updated_at = NOW() WHERE id = $2",
         )
         .bind(diamonds)
         .bind(customer_id)
-        .execute(self.pool)
+        .execute(&mut *tx)
         .await?;
 
+        tx.commit().await?;
         Ok(())
     }
 }

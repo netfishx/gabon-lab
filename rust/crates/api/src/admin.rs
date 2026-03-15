@@ -172,13 +172,17 @@ pub async fn admin_refresh_handler(
 
 pub async fn admin_logout_handler(
     State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
     AuthAdmin(claims): AuthAdmin,
 ) -> Result<JsonData<()>, AppError> {
+    let raw_token = headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|h| h.strip_prefix("Bearer "))
+        .ok_or(AppError::Unauthorized)?;
     let store = RedisTokenStore { pool: &state.redis };
     let remaining = (claims.exp - chrono::Utc::now().timestamp()).max(0).cast_unsigned();
-    store
-        .blacklist_access_token(&format!("admin:sub:{}", claims.sub), remaining)
-        .await?;
+    store.blacklist_access_token(raw_token, remaining).await?;
     Ok(JsonData::ok(()))
 }
 
@@ -295,14 +299,14 @@ impl axum::extract::FromRequestParts<AppState> for AuthAdmin {
         parts: &mut axum::http::request::Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        let header = parts
-            .headers
-            .get("authorization")
-            .and_then(|v| v.to_str().ok())
-            .ok_or(AppError::Unauthorized)?;
-
-        let token = header.strip_prefix("Bearer ").ok_or(AppError::Unauthorized)?;
+        let token = crate::middleware::extract_bearer(parts).ok_or(AppError::Unauthorized)?;
         let claims = verify_admin_token(token, &state.config.jwt)?;
+
+        let store = RedisTokenStore { pool: &state.redis };
+        if store.is_blacklisted(token).await? {
+            return Err(AppError::Unauthorized);
+        }
+
         Ok(Self(claims))
     }
 }
@@ -461,19 +465,20 @@ pub async fn admin_get_video_detail(repo: &impl AdminRepo, video_id: i64) -> Res
 }
 
 /// Admin refresh: consume old refresh token, issue new admin access + refresh pair.
+/// Uses atomic CAS rotation to prevent replay attacks.
 pub async fn admin_refresh_access_token(
     store: &impl TokenStore,
     config: &JwtConfig,
     refresh_token: &str,
 ) -> Result<(String, String), AppError> {
+    let new_refresh = uuid::Uuid::new_v4().to_string();
+
+    // Atomic: GET old → DELETE old → SET new (Lua script in Redis impl)
     let admin_id = store
-        .get_refresh_token_user(refresh_token)
+        .rotate_refresh_token(refresh_token, &new_refresh, config.admin_refresh_ttl)
         .await?
         .ok_or(AppError::Unauthorized)?;
 
-    store.delete_refresh_token(refresh_token).await?;
-
-    // Issue new admin access token (minimal AdminRow for signing)
     let admin_row = AdminRow {
         id: admin_id,
         username: String::new(),
@@ -483,12 +488,6 @@ pub async fn admin_refresh_access_token(
         status: 1,
     };
     let access = sign_admin_token(&admin_row, config)?;
-
-    // Issue new refresh token
-    let new_refresh = uuid::Uuid::new_v4().to_string();
-    store
-        .store_refresh_token(&new_refresh, admin_id, config.admin_refresh_ttl)
-        .await?;
 
     Ok((access, new_refresh))
 }
@@ -873,6 +872,14 @@ mod tests {
         async fn delete_refresh_token(&self, token: &str) -> Result<(), AppError> {
             self.refresh_tokens.lock().unwrap().remove(token);
             Ok(())
+        }
+        async fn rotate_refresh_token(&self, old: &str, new: &str, ttl: u64) -> Result<Option<i64>, AppError> {
+            let uid = self.get_refresh_token_user(old).await?;
+            if let Some(id) = uid {
+                self.delete_refresh_token(old).await?;
+                self.store_refresh_token(new, id, ttl).await?;
+            }
+            Ok(uid)
         }
         async fn blacklist_access_token(&self, token: &str, _ttl: u64) -> Result<(), AppError> {
             self.blacklist.lock().unwrap().push(token.to_string());

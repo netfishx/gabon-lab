@@ -2,9 +2,20 @@ use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 
 use crate::service;
+use gabon_infra::redis_store::RedisTokenStore;
 use gabon_shared::error::AppError;
+use gabon_shared::traits::TokenStore;
 
 use crate::AppState;
+
+/// Extract raw Bearer token from Authorization header.
+pub(crate) fn extract_bearer(parts: &Parts) -> Option<&str> {
+    parts
+        .headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|h| h.strip_prefix("Bearer "))
+}
 
 /// Extractor that validates JWT and provides the customer ID.
 /// Usage: `async fn handler(claims: AuthCustomer) -> ...`
@@ -17,17 +28,14 @@ impl FromRequestParts<AppState> for AuthCustomer {
         parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        let header = parts
-            .headers
-            .get("authorization")
-            .and_then(|v| v.to_str().ok())
-            .ok_or(AppError::Unauthorized)?;
-
-        let token = header
-            .strip_prefix("Bearer ")
-            .ok_or(AppError::Unauthorized)?;
-
+        let token = extract_bearer(parts).ok_or(AppError::Unauthorized)?;
         let claims = service::verify_customer_token(token, &state.config.jwt)?;
+
+        let store = RedisTokenStore { pool: &state.redis };
+        if store.is_blacklisted(token).await? {
+            return Err(AppError::Unauthorized);
+        }
+
         Ok(Self(claims))
     }
 }
@@ -42,21 +50,19 @@ impl FromRequestParts<AppState> for OptionalAuth {
         parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        let Some(header) = parts
-            .headers
-            .get("authorization")
-            .and_then(|v| v.to_str().ok())
-        else {
+        let Some(token) = extract_bearer(parts) else {
             return Ok(Self(None));
         };
 
-        let Some(token) = header.strip_prefix("Bearer ") else {
+        let Ok(claims) = service::verify_customer_token(token, &state.config.jwt) else {
             return Ok(Self(None));
         };
 
-        match service::verify_customer_token(token, &state.config.jwt) {
-            Ok(claims) => Ok(Self(Some(claims))),
-            Err(_) => Ok(Self(None)),
+        let store = RedisTokenStore { pool: &state.redis };
+        if store.is_blacklisted(token).await.unwrap_or(false) {
+            return Ok(Self(None));
         }
+
+        Ok(Self(Some(claims)))
     }
 }

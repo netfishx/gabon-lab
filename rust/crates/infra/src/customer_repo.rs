@@ -61,6 +61,15 @@ impl gabon_shared::traits::AuthRepo for PgAuthRepo<'_> {
         Ok(())
     }
 
+    async fn update_avatar(&self, id: i64, avatar_url: &str) -> Result<(), AppError> {
+        sqlx::query("UPDATE customers SET avatar_url = $1, updated_at = NOW() WHERE id = $2 AND deleted_at IS NULL")
+            .bind(avatar_url)
+            .bind(id)
+            .execute(self.pool)
+            .await?;
+        Ok(())
+    }
+
     async fn update_profile(
         &self,
         id: i64,
