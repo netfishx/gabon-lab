@@ -150,13 +150,17 @@ impl gabon_shared::traits::VideoRepo for PgVideoRepo<'_> {
         customer_id: Option<i64>,
         play_type: i16,
     ) -> Result<i64, AppError> {
-        let col = if play_type == 1 { "total_clicks" } else { "valid_clicks" };
-        sqlx::query(&format!(
-            "UPDATE videos SET {col} = {col} + 1, updated_at = NOW() WHERE id = $1 AND deleted_at IS NULL"
-        ))
-        .bind(video_id)
-        .execute(self.pool)
-        .await?;
+        if play_type == 1 {
+            sqlx::query("UPDATE videos SET total_clicks = total_clicks + 1, updated_at = NOW() WHERE id = $1 AND deleted_at IS NULL")
+                .bind(video_id)
+                .execute(self.pool)
+                .await?;
+        } else {
+            sqlx::query("UPDATE videos SET valid_clicks = valid_clicks + 1, updated_at = NOW() WHERE id = $1 AND deleted_at IS NULL")
+                .bind(video_id)
+                .execute(self.pool)
+                .await?;
+        }
 
         let id: i64 = sqlx::query_scalar(
             r"INSERT INTO video_play_records (video_id, customer_id, play_type, ip_address)

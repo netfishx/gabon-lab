@@ -102,21 +102,27 @@ func Load() (*Config, error) {
 }
 
 func getEnvInt(key string, fallback int) int {
-	if v := os.Getenv(key); v != "" {
-		if i, err := strconv.Atoi(v); err == nil {
-			return i
-		}
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
 	}
-	return fallback
+	i, err := strconv.Atoi(v)
+	if err != nil {
+		panic(fmt.Sprintf("config: %s=%q is not a valid integer: %v", key, v, err))
+	}
+	return i
 }
 
 func getEnvDuration(key string, fallback time.Duration) time.Duration {
-	if v := os.Getenv(key); v != "" {
-		if d, err := time.ParseDuration(v); err == nil {
-			return d
-		}
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
 	}
-	return fallback
+	d, err := time.ParseDuration(v)
+	if err != nil {
+		panic(fmt.Sprintf("config: %s=%q is not a valid duration: %v", key, v, err))
+	}
+	return d
 }
 
 func getEnvString(key, fallback string) string {

@@ -5,6 +5,7 @@ use axum::Router;
 use deadpool_redis::{Config as RedisConfig, Runtime};
 use sqlx::PgPool;
 use tower_http::compression::CompressionLayer;
+use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::EnvFilter;
 
@@ -18,6 +19,7 @@ mod admin;
 mod auth;
 mod customer;
 mod middleware;
+mod rate_limit;
 mod service;
 mod social;
 mod token;
@@ -116,6 +118,11 @@ async fn main() {
         .route("/api/customer/{userId}/follow", post(social::follow_handler).delete(social::unfollow_handler))
         .layer(TraceLayer::new_for_http())
         .layer(CompressionLayer::new())
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            rate_limit::rate_limit,
+        ))
+        .layer(TimeoutLayer::with_status_code(axum::http::StatusCode::REQUEST_TIMEOUT, std::time::Duration::from_secs(30)))
         .with_state(state);
 
     tracing::info!("listening on {addr}");

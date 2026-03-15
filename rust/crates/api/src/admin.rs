@@ -39,7 +39,7 @@ pub struct AdminAuthRequest {
 pub async fn me_handler(
     State(state): State<AppState>,
     AuthAdmin(claims): AuthAdmin,
-) -> Result<JsonData<AdminLoginResponse>, AppError> {
+) -> Result<JsonData<AdminProfile>, AppError> {
     let repo = PgAdminRepo { pool: &state.db };
     let result = admin_get_me(&repo, claims.sub).await?;
     Ok(JsonData::ok(result))
@@ -395,10 +395,18 @@ pub fn sign_admin_token(admin: &AdminRow, config: &JwtConfig) -> Result<String, 
         .map_err(|e| AppError::Internal(e.to_string()))
 }
 
-pub async fn admin_get_me(repo: &impl AdminRepo, admin_id: i64) -> Result<AdminLoginResponse, AppError> {
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AdminProfile {
+    pub id: i64,
+    pub username: String,
+    pub full_name: Option<String>,
+    pub role: i16,
+}
+
+pub async fn admin_get_me(repo: &impl AdminRepo, admin_id: i64) -> Result<AdminProfile, AppError> {
     let admin = repo.find_admin_by_id(admin_id).await?.ok_or(AppError::NotFound("管理员不存在".into()))?;
-    Ok(AdminLoginResponse {
-        access_token: String::new(),
+    Ok(AdminProfile {
         id: admin.id,
         username: admin.username,
         full_name: admin.full_name,
@@ -730,9 +738,11 @@ mod tests {
     #[tokio::test]
     async fn admin_get_me_succeeds() {
         let repo = MockAdminRepo::with_admin(test_admin_row());
-        let result = admin_get_me(&repo, 1).await;
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap().username, "admin");
+        let profile = admin_get_me(&repo, 1).await.unwrap();
+        assert_eq!(profile.username, "admin");
+        // AdminProfile has no access_token field (unlike AdminLoginResponse)
+        let json = serde_json::to_value(&profile).unwrap();
+        assert!(json.get("accessToken").is_none());
     }
 
     #[tokio::test]
