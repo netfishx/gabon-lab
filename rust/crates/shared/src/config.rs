@@ -50,11 +50,11 @@ impl Config {
             redis_url: env_or_string("REDIS_URL", "redis://localhost:6379/0"),
             jwt: JwtConfig {
                 customer_secret: env_required("JWT_CUSTOMER_SECRET"),
-                customer_access_ttl: env_or("JWT_CUSTOMER_ACCESS_TTL", 900),
-                customer_refresh_ttl: env_or("JWT_CUSTOMER_REFRESH_TTL", 604_800),
+                customer_access_ttl: env_duration_secs("JWT_CUSTOMER_ACCESS_TTL", 900),
+                customer_refresh_ttl: env_duration_secs("JWT_CUSTOMER_REFRESH_TTL", 604_800),
                 admin_secret: env_required("JWT_ADMIN_SECRET"),
-                admin_access_ttl: env_or("JWT_ADMIN_ACCESS_TTL", 900),
-                admin_refresh_ttl: env_or("JWT_ADMIN_REFRESH_TTL", 604_800),
+                admin_access_ttl: env_duration_secs("JWT_ADMIN_ACCESS_TTL", 900),
+                admin_refresh_ttl: env_duration_secs("JWT_ADMIN_REFRESH_TTL", 604_800),
                 current_kid: env_or_string("JWT_CURRENT_KID", "key-2026-02"),
             },
             s3: S3Config {
@@ -83,4 +83,37 @@ fn env_or<T: std::str::FromStr>(key: &str, default: T) -> T {
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(default)
+}
+
+/// Parse a duration env var that may be plain seconds ("900") or Go-style ("15m", "168h").
+fn env_duration_secs(key: &str, default: u64) -> u64 {
+    let v = match env::var(key) {
+        Ok(v) if !v.is_empty() => v,
+        _ => return default,
+    };
+    // Try plain integer seconds first
+    if let Ok(secs) = v.parse::<u64>() {
+        return secs;
+    }
+    // Try Go-style duration: e.g. "15m", "168h", "30s"
+    parse_go_duration(&v).unwrap_or_else(|| {
+        panic!("{key}={v:?} is not a valid duration (use seconds or Go-style like 15m, 168h)")
+    })
+}
+
+/// Parse a subset of Go's `time.ParseDuration` format into seconds.
+/// Supports: `<number>s`, `<number>m`, `<number>h`.
+fn parse_go_duration(s: &str) -> Option<u64> {
+    let s = s.trim();
+    if s.is_empty() {
+        return None;
+    }
+    let (num_part, suffix) = s.split_at(s.len() - 1);
+    let value: u64 = num_part.parse().ok()?;
+    match suffix {
+        "s" => Some(value),
+        "m" => Some(value * 60),
+        "h" => Some(value * 3600),
+        _ => None,
+    }
 }

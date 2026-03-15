@@ -159,7 +159,10 @@ func (s *JWTService) parseToken(tokenStr, secret, expectedIss, expectedAud strin
 	}
 
 	var userID int64
-	_, _ = fmt.Sscanf(cc.Subject, "%d", &userID)
+	n, err := fmt.Sscanf(cc.Subject, "%d", &userID)
+	if err != nil || n != 1 {
+		return nil, fmt.Errorf("invalid subject in token: %q", cc.Subject)
+	}
 
 	return &TokenClaims{
 		UserID:    userID,

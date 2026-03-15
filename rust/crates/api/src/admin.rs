@@ -105,9 +105,10 @@ pub async fn list_admins_handler(
 
 pub async fn create_admin_handler(
     State(state): State<AppState>,
-    AuthAdmin(_claims): AuthAdmin,
+    AuthAdmin(claims): AuthAdmin,
     Json(body): Json<CreateAdminRequest>,
 ) -> Result<JsonData<AdminRow>, AppError> {
+    require_superadmin(&claims)?;
     let repo = PgAdminRepo { pool: &state.db };
     let admin = admin_create_user(&repo, &body.username, &body.password, body.role, body.full_name.as_deref()).await?;
     Ok(JsonData::ok(admin))
@@ -151,6 +152,7 @@ pub async fn delete_admin_handler(
     Path(id): Path<i64>,
     AuthAdmin(claims): AuthAdmin,
 ) -> Result<JsonData<()>, AppError> {
+    require_superadmin(&claims)?;
     let repo = PgAdminRepo { pool: &state.db };
     admin_delete_user(&repo, id, claims.sub).await?;
     Ok(JsonData::ok(()))
@@ -162,9 +164,10 @@ pub async fn admin_refresh_handler(
     State(state): State<AppState>,
     Json(body): Json<AdminRefreshRequest>,
 ) -> Result<JsonData<AdminRefreshResponse>, AppError> {
+    let repo = PgAdminRepo { pool: &state.db };
     let store = RedisTokenStore { pool: &state.redis };
     let (access, refresh) =
-        admin_refresh_access_token(&store, &state.config.jwt, &body.refresh_token).await?;
+        admin_refresh_access_token(&repo, &store, &state.config.jwt, &body.refresh_token).await?;
     Ok(JsonData::ok(AdminRefreshResponse {
         access_token: access,
         refresh_token: refresh,
@@ -222,9 +225,10 @@ pub struct UpdateAdminRequest {
 pub async fn update_admin_handler(
     State(state): State<AppState>,
     Path(id): Path<i64>,
-    AuthAdmin(_claims): AuthAdmin,
+    AuthAdmin(claims): AuthAdmin,
     Json(body): Json<UpdateAdminRequest>,
 ) -> Result<JsonData<()>, AppError> {
+    require_superadmin(&claims)?;
     let repo = PgAdminRepo { pool: &state.db };
     admin_update_user(&repo, id, body.role, body.full_name.as_deref(), body.status).await?;
     Ok(JsonData::ok(()))
@@ -233,9 +237,12 @@ pub async fn update_admin_handler(
 pub async fn change_admin_password_handler(
     State(state): State<AppState>,
     Path(id): Path<i64>,
-    AuthAdmin(_claims): AuthAdmin,
+    AuthAdmin(claims): AuthAdmin,
     Json(body): Json<AdminPasswordRequest>,
 ) -> Result<JsonData<()>, AppError> {
+    if id != claims.sub {
+        require_superadmin(&claims)?;
+    }
     let repo = PgAdminRepo { pool: &state.db };
     admin_change_password(&repo, id, &body.new_password).await?;
     Ok(JsonData::ok(()))
@@ -313,6 +320,15 @@ impl axum::extract::FromRequestParts<AppState> for AuthAdmin {
     }
 }
 
+// ─── Role checks ──────────────────────────────
+
+fn require_superadmin(claims: &Claims) -> Result<(), AppError> {
+    if claims.role != "superadmin" {
+        return Err(AppError::Forbidden);
+    }
+    Ok(())
+}
+
 // ─── Service ───────────────────────────────────
 
 #[derive(Debug, Serialize)]
@@ -387,6 +403,10 @@ pub async fn review_video_action(
 
 pub fn sign_admin_token(admin: &AdminRow, config: &JwtConfig) -> Result<String, AppError> {
     let now = Utc::now().timestamp();
+    let role_str = match admin.role {
+        1 => "superadmin",
+        _ => "admin",
+    };
     let claims = Claims {
         sub: admin.id,
         iss: "gabon-admin".into(),
@@ -394,6 +414,7 @@ pub fn sign_admin_token(admin: &AdminRow, config: &JwtConfig) -> Result<String, 
         iat: now,
         exp: now + config.admin_access_ttl.cast_signed(),
         kid: config.current_kid.clone(),
+        role: role_str.into(),
     };
 
     let header = Header {
@@ -485,6 +506,7 @@ pub async fn admin_get_video_detail(repo: &impl AdminRepo, video_id: i64) -> Res
 /// Admin refresh: consume old refresh token, issue new admin access + refresh pair.
 /// Uses atomic CAS rotation to prevent replay attacks.
 pub async fn admin_refresh_access_token(
+    repo: &impl AdminRepo,
     store: &impl TokenStore,
     config: &JwtConfig,
     refresh_token: &str,
@@ -503,14 +525,10 @@ pub async fn admin_refresh_access_token(
         return Err(AppError::Unauthorized);
     }
 
-    let admin_row = AdminRow {
-        id: admin_id,
-        username: String::new(),
-        password_hash: String::new(),
-        role: 0,
-        full_name: None,
-        status: 1,
-    };
+    let admin_row = repo
+        .find_admin_by_id(admin_id)
+        .await?
+        .ok_or(AppError::Unauthorized)?;
     let access = sign_admin_token(&admin_row, config)?;
 
     Ok((access, new_refresh))
@@ -932,11 +950,12 @@ mod tests {
 
     #[tokio::test]
     async fn admin_refresh_succeeds() {
+        let repo = MockAdminRepo::with_admin(test_admin_row());
         let store = MockTokenStore::new();
         let config = test_jwt_config();
         // Seed a refresh token
         store.store_refresh_token("admin-refresh-123", 1, 604800).await.unwrap();
-        let result = admin_refresh_access_token(&store, &config, "admin-refresh-123").await;
+        let result = admin_refresh_access_token(&repo, &store, &config, "admin-refresh-123").await;
         assert!(result.is_ok());
         let (access, new_refresh) = result.unwrap();
         assert!(!access.is_empty());
@@ -947,8 +966,9 @@ mod tests {
 
     #[tokio::test]
     async fn admin_refresh_fails_invalid_token() {
+        let repo = MockAdminRepo::empty();
         let store = MockTokenStore::new();
         let config = test_jwt_config();
-        assert!(admin_refresh_access_token(&store, &config, "bogus").await.is_err());
+        assert!(admin_refresh_access_token(&repo, &store, &config, "bogus").await.is_err());
     }
 }

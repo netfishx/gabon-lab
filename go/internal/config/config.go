@@ -118,11 +118,13 @@ func getEnvDuration(key string, fallback time.Duration) time.Duration {
 	if v == "" {
 		return fallback
 	}
-	d, err := time.ParseDuration(v)
-	if err != nil {
-		panic(fmt.Sprintf("config: %s=%q is not a valid duration: %v", key, v, err))
+	if d, err := time.ParseDuration(v); err == nil {
+		return d
 	}
-	return d
+	if secs, err := strconv.ParseInt(v, 10, 64); err == nil {
+		return time.Duration(secs) * time.Second
+	}
+	panic(fmt.Sprintf("config: %s=%q is not a valid duration or seconds value", key, v))
 }
 
 func getEnvString(key, fallback string) string {

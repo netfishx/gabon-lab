@@ -152,10 +152,13 @@ pub async fn delete(
 pub async fn user_videos(
     State(state): State<AppState>,
     Path(user_id): Path<i64>,
-) -> Result<JsonData<Vec<VideoListRow>>, AppError> {
+    Query(params): Query<ListParams>,
+) -> Result<JsonData<Paginated<VideoListRow>>, AppError> {
     let repo = PgVideoRepo { pool: &state.db };
-    let items = repo.list_user_videos(user_id).await?;
-    Ok(JsonData::ok(items))
+    let page = params.page.unwrap_or(1);
+    let size = params.size.unwrap_or(20);
+    let (items, total) = repo.list_user_videos(user_id, page, size).await?;
+    Ok(JsonData::ok(Paginated::new(items, page, size, total)))
 }
 
 // ─── Upload ───────────────────────────────────
@@ -205,7 +208,8 @@ pub async fn upload(
     let (content_type, data) =
         file_data.ok_or_else(|| AppError::BadRequest("缺少 file 字段".into()))?;
 
-    if data.len() > MAX_VIDEO_SIZE {
+    let data_len = data.len();
+    if data_len > MAX_VIDEO_SIZE {
         return Err(AppError::BadRequest(format!(
             "文件过大，最大 {}MB",
             MAX_VIDEO_SIZE / 1024 / 1024
@@ -227,10 +231,21 @@ pub async fn upload(
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
-    let _ = description; // reserved for future use
+    let file_name = format!("{id}.{ext}");
+    let file_size = data_len as i64;
     let repo = PgVideoRepo { pool: &state.db };
     let video_id = repo
-        .create_video(claims.sub, title.as_deref(), &resource_url, None, None)
+        .create_video(
+            claims.sub,
+            title.as_deref(),
+            description.as_deref(),
+            &file_name,
+            file_size,
+            &resource_url,
+            &content_type,
+            None,
+            None,
+        )
         .await
         .map_err(|e| {
             tracing::error!("Failed to create video record: {e}");
@@ -318,11 +333,11 @@ mod tests {
             Ok(*self.unlike_returns.lock().unwrap()) // reuse flag for simplicity
         }
 
-        async fn list_user_videos(&self, _user_id: i64) -> Result<Vec<VideoListRow>, AppError> {
-            Ok(vec![])
+        async fn list_user_videos(&self, _user_id: i64, _page: i64, _page_size: i64) -> Result<(Vec<VideoListRow>, i64), AppError> {
+            Ok((vec![], 0))
         }
 
-        async fn create_video(&self, _customer_id: i64, _title: Option<&str>, _file_url: &str, _thumbnail_url: Option<&str>, _duration: Option<i32>) -> Result<i64, AppError> {
+        async fn create_video(&self, _customer_id: i64, _title: Option<&str>, _description: Option<&str>, _file_name: &str, _file_size: i64, _file_url: &str, _mime_type: &str, _thumbnail_url: Option<&str>, _duration: Option<i32>) -> Result<i64, AppError> {
             Ok(1)
         }
     }

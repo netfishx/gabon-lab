@@ -134,7 +134,7 @@ impl gabon_shared::traits::VideoRepo for PgVideoRepo<'_> {
                    DELETE FROM video_likes WHERE video_id = $1 AND customer_id = $2
                    RETURNING video_id
                )
-               UPDATE videos SET like_count = like_count - 1, updated_at = NOW()
+               UPDATE videos SET like_count = GREATEST(like_count - 1, 0), updated_at = NOW()
                WHERE id = (SELECT video_id FROM deleted)",
         )
         .bind(video_id)
@@ -222,7 +222,7 @@ impl gabon_shared::traits::VideoRepo for PgVideoRepo<'_> {
     async fn delete_video(&self, video_id: i64, customer_id: i64) -> Result<bool, AppError> {
         let result = sqlx::query(
             r"UPDATE videos SET deleted_at = NOW(), updated_at = NOW()
-               WHERE id = $1 AND customer_id = $2 AND status = 3 AND deleted_at IS NULL",
+               WHERE id = $1 AND customer_id = $2 AND deleted_at IS NULL",
         )
         .bind(video_id)
         .bind(customer_id)
@@ -231,15 +231,30 @@ impl gabon_shared::traits::VideoRepo for PgVideoRepo<'_> {
         Ok(result.rows_affected() > 0)
     }
 
-    async fn create_video(&self, customer_id: i64, title: Option<&str>, file_url: &str, thumbnail_url: Option<&str>, duration: Option<i32>) -> Result<i64, AppError> {
+    async fn create_video(
+        &self,
+        customer_id: i64,
+        title: Option<&str>,
+        description: Option<&str>,
+        file_name: &str,
+        file_size: i64,
+        file_url: &str,
+        mime_type: &str,
+        thumbnail_url: Option<&str>,
+        duration: Option<i32>,
+    ) -> Result<i64, AppError> {
         let id: i64 = sqlx::query_scalar(
-            r"INSERT INTO videos (customer_id, title, file_url, thumbnail_url, duration, status)
-               VALUES ($1, $2, $3, $4, $5, 3)
+            r"INSERT INTO videos (customer_id, title, description, file_name, file_size, file_url, mime_type, thumbnail_url, duration, status)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 3)
                RETURNING id",
         )
         .bind(customer_id)
         .bind(title)
+        .bind(description)
+        .bind(file_name)
+        .bind(file_size)
         .bind(file_url)
+        .bind(mime_type)
         .bind(thumbnail_url)
         .bind(duration)
         .fetch_one(self.pool)
@@ -247,16 +262,28 @@ impl gabon_shared::traits::VideoRepo for PgVideoRepo<'_> {
         Ok(id)
     }
 
-    async fn list_user_videos(&self, user_id: i64) -> Result<Vec<VideoListRow>, AppError> {
+    async fn list_user_videos(&self, user_id: i64, page: i64, page_size: i64) -> Result<(Vec<VideoListRow>, i64), AppError> {
+        let offset = (page - 1) * page_size;
+
+        let total: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM videos WHERE customer_id = $1 AND status = 4 AND deleted_at IS NULL",
+        )
+        .bind(user_id)
+        .fetch_one(self.pool)
+        .await?;
+
         let items = sqlx::query_as::<_, VideoListRow>(
             r"SELECT id, customer_id, title, thumbnail_url, duration, like_count, total_clicks
                FROM videos WHERE customer_id = $1 AND status = 4 AND deleted_at IS NULL
-               ORDER BY id DESC",
+               ORDER BY id DESC LIMIT $2 OFFSET $3",
         )
         .bind(user_id)
+        .bind(page_size)
+        .bind(offset)
         .fetch_all(self.pool)
         .await?;
-        Ok(items)
+
+        Ok((items, total))
     }
 }
 

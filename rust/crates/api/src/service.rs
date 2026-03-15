@@ -14,6 +14,8 @@ pub struct Claims {
     pub exp: i64,
     pub iat: i64,
     pub kid: String,
+    #[serde(default)]
+    pub role: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -161,6 +163,7 @@ pub(crate) fn sign_access_token(customer: &CustomerRow, config: &JwtConfig) -> R
         iat: now,
         exp: now + config.customer_access_ttl.cast_signed(),
         kid: config.current_kid.clone(),
+        role: "customer".into(),
     };
 
     let header = Header {
@@ -370,6 +373,7 @@ mod tests {
             iat: Utc::now().timestamp() - 300,
             exp: Utc::now().timestamp() - 120,
             kid: "key-test".into(),
+            role: "customer".into(),
         };
         let token = encode(
             &Header::default(),

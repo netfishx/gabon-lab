@@ -58,14 +58,18 @@ pub trait VideoRepo {
         play_type: i16,
     ) -> Result<i64, AppError>;
     async fn get_detail(&self, video_id: i64, viewer_id: Option<i64>) -> Result<Option<VideoDetailRow>, AppError>;
-    /// Delete video. Only `PENDING_REVIEW(3)` videos owned by customer can be deleted.
+    /// Delete video owned by customer (any status).
     async fn delete_video(&self, video_id: i64, customer_id: i64) -> Result<bool, AppError>;
-    async fn list_user_videos(&self, user_id: i64) -> Result<Vec<VideoListRow>, AppError>;
+    async fn list_user_videos(&self, user_id: i64, page: i64, page_size: i64) -> Result<(Vec<VideoListRow>, i64), AppError>;
     async fn create_video(
         &self,
         customer_id: i64,
         title: Option<&str>,
+        description: Option<&str>,
+        file_name: &str,
+        file_size: i64,
         file_url: &str,
+        mime_type: &str,
         thumbnail_url: Option<&str>,
         duration: Option<i32>,
     ) -> Result<i64, AppError>;

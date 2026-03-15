@@ -36,8 +36,8 @@ impl gabon_shared::traits::ActivityRepo for PgActivityRepo<'_> {
         }
 
         sqlx::query(
-            r"INSERT INTO customer_sign_in_records (customer_id, sign_in_date, period_key, diamonds_awarded)
-               VALUES ($1, NOW(), $2, $3)",
+            r"INSERT INTO customer_sign_in_records (customer_id, period_key, reward_diamonds)
+               VALUES ($1, $2, $3)",
         )
         .bind(customer_id)
         .bind(period_key)
