@@ -192,6 +192,9 @@ mod tests {
         async fn is_user_revoked(&self, _user_id: i64) -> Result<bool, AppError> {
             Ok(false)
         }
+        async fn clear_user_revocation(&self, _user_id: i64) -> Result<(), AppError> {
+            Ok(())
+        }
     }
 
     // ─── issue_refresh_token tests ─────────────────

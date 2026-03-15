@@ -70,6 +70,7 @@ pub async fn register(
         bcrypt::hash(password, bcrypt::DEFAULT_COST).map_err(|e| AppError::Internal(e.to_string()))?;
 
     let customer = repo.create(username, &password_hash).await?;
+    store.clear_user_revocation(customer.id).await?;
     let access_token = sign_access_token(&customer, jwt_config)?;
     let refresh_token = crate::token::issue_refresh_token(store, jwt_config, customer.id).await?;
 
@@ -99,6 +100,7 @@ pub async fn login(
     }
 
     repo.update_last_login(customer.id).await?;
+    store.clear_user_revocation(customer.id).await?;
     let access_token = sign_access_token(&customer, jwt_config)?;
     let refresh_token = crate::token::issue_refresh_token(store, jwt_config, customer.id).await?;
 
@@ -223,6 +225,9 @@ mod tests {
         }
         async fn is_user_revoked(&self, _user_id: i64) -> Result<bool, AppError> {
             Ok(false)
+        }
+        async fn clear_user_revocation(&self, _user_id: i64) -> Result<(), AppError> {
+            Ok(())
         }
     }
 

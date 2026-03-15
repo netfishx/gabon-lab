@@ -349,6 +349,7 @@ pub async fn admin_login(
     }
 
     repo.update_admin_last_login(admin.id).await?;
+    store.clear_user_revocation(admin.id).await?;
     let access_token = sign_admin_token(&admin, jwt_config)?;
     let refresh_token = uuid::Uuid::new_v4().to_string();
     store
@@ -923,6 +924,9 @@ mod tests {
         }
         async fn is_user_revoked(&self, _user_id: i64) -> Result<bool, AppError> {
             Ok(false)
+        }
+        async fn clear_user_revocation(&self, _user_id: i64) -> Result<(), AppError> {
+            Ok(())
         }
     }
 

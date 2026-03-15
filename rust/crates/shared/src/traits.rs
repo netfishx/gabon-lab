@@ -319,6 +319,8 @@ pub trait TokenStore {
     async fn revoke_user_sessions(&self, user_id: i64, ttl_secs: u64) -> Result<(), AppError>;
     /// Check if a user's sessions have been revoked.
     async fn is_user_revoked(&self, user_id: i64) -> Result<bool, AppError>;
+    /// Clear revocation mark (called on re-login so new refresh tokens work).
+    async fn clear_user_revocation(&self, user_id: i64) -> Result<(), AppError>;
     /// Check if access token is blacklisted.
     async fn is_blacklisted(&self, token: &str) -> Result<bool, AppError>;
 }
