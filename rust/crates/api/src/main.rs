@@ -67,7 +67,13 @@ async fn main() {
         config,
     };
 
-    let app = Router::new()
+    // Upload routes: no timeout (large file transfers can exceed 30s)
+    let upload_routes = Router::new()
+        .route("/api/videos/upload", post(video::upload))
+        .route("/api/users/me/avatar", post(customer::upload_avatar));
+
+    // All other routes: 30s timeout
+    let api_routes = Router::new()
         .route("/health", get(health))
         .route("/api/auth/register", post(auth::register))
         .route("/api/auth/login", post(auth::login))
@@ -79,7 +85,6 @@ async fn main() {
         .route("/api/videos", get(video::list))
         .route("/api/videos/featured", get(video::featured))
         .route("/api/videos/my", get(video::my_videos))
-        .route("/api/videos/upload", post(video::upload))
         .route("/api/videos/{id}", get(video::detail).delete(video::delete))
         .route("/api/videos/{id}/like", post(video::like).delete(video::unlike))
         .route("/api/videos/{videoId}/play-click", post(video::play_click))
@@ -90,7 +95,6 @@ async fn main() {
         .route("/api/tasks/claim/{progressId}", post(activity::claim_handler))
         // Users (me)
         .route("/api/users/me/profile", get(customer::get_my_profile).put(customer::update_my_profile))
-        .route("/api/users/me/avatar", post(customer::upload_avatar))
         // Users (by id)
         .route("/api/users/{id}/following", get(customer::get_user_following))
         .route("/api/users/{id}/followers", get(customer::get_user_followers))
@@ -116,18 +120,31 @@ async fn main() {
         .route("/api/customer/followers", get(customer::get_followers))
         .route("/api/customer/{userId}/profile", get(customer::get_profile))
         .route("/api/customer/{userId}/follow", post(social::follow_handler).delete(social::unfollow_handler))
+        .layer(TimeoutLayer::with_status_code(
+            axum::http::StatusCode::REQUEST_TIMEOUT,
+            std::time::Duration::from_secs(30),
+        ));
+
+    // Merge: upload (no timeout) + api (with timeout), then shared layers
+    let app = Router::new()
+        .merge(upload_routes)
+        .merge(api_routes)
         .layer(TraceLayer::new_for_http())
         .layer(CompressionLayer::new())
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             rate_limit::rate_limit,
         ))
-        .layer(TimeoutLayer::with_status_code(axum::http::StatusCode::REQUEST_TIMEOUT, std::time::Duration::from_secs(30)))
         .with_state(state);
 
     tracing::info!("listening on {addr}");
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .unwrap();
 }
 
 async fn health() -> JsonData<&'static str> {

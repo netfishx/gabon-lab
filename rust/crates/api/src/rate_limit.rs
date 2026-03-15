@@ -1,9 +1,14 @@
+use std::net::SocketAddr;
+
 use axum::body::Body;
+use axum::extract::connect_info::ConnectInfo;
 use axum::extract::State;
-use axum::http::{Request, StatusCode};
+use axum::http::{Request, StatusCode, header::HeaderValue};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use deadpool_redis::redis;
+
+use gabon_shared::response::JsonData;
 
 use crate::AppState;
 
@@ -16,29 +21,54 @@ pub async fn rate_limit(
     request: Request<Body>,
     next: Next,
 ) -> Response {
-    let ip = request
+    let ip = resolve_client_ip(&request);
+
+    match check_limit(&state.redis, &ip).await {
+        Ok(remaining) => {
+            let mut response = next.run(request).await;
+            set_rate_headers(response.headers_mut(), remaining);
+            response
+        }
+        Err(resp) => resp,
+    }
+}
+
+/// Resolve client IP: X-Forwarded-For → X-Real-IP → peer address.
+fn resolve_client_ip(req: &Request<Body>) -> String {
+    if let Some(forwarded) = req
         .headers()
         .get("x-forwarded-for")
         .and_then(|v| v.to_str().ok())
         .and_then(|s| s.split(',').next())
         .map(str::trim)
-        .or_else(|| {
-            request
-                .headers()
-                .get("x-real-ip")
-                .and_then(|v| v.to_str().ok())
-        })
-        .unwrap_or("unknown")
-        .to_string();
-
-    if let Err(resp) = check_limit(&state.redis, &ip).await {
-        return resp;
+    {
+        return forwarded.to_string();
     }
 
-    next.run(request).await
+    if let Some(real_ip) = req
+        .headers()
+        .get("x-real-ip")
+        .and_then(|v| v.to_str().ok())
+    {
+        return real_ip.to_string();
+    }
+
+    req.extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|ci| ci.0.ip().to_string())
+        .unwrap_or_else(|| "0.0.0.0".into())
 }
 
-async fn check_limit(pool: &deadpool_redis::Pool, ip: &str) -> Result<(), Response> {
+fn set_rate_headers(headers: &mut axum::http::HeaderMap, remaining: i64) {
+    if let Ok(v) = HeaderValue::from_str(&LIMIT.to_string()) {
+        headers.insert("X-RateLimit-Limit", v);
+    }
+    if let Ok(v) = HeaderValue::from_str(&remaining.to_string()) {
+        headers.insert("X-RateLimit-Remaining", v);
+    }
+}
+
+async fn check_limit(pool: &deadpool_redis::Pool, ip: &str) -> Result<i64, Response> {
     let mut conn = pool
         .get()
         .await
@@ -74,8 +104,18 @@ async fn check_limit(pool: &deadpool_redis::Pool, ip: &str) -> Result<(), Respon
         .map_err(|_| StatusCode::SERVICE_UNAVAILABLE.into_response())?;
 
     if count > LIMIT {
-        return Err(StatusCode::TOO_MANY_REQUESTS.into_response());
+        let remaining = 0i64;
+        let mut resp = (
+            StatusCode::TOO_MANY_REQUESTS,
+            axum::Json(JsonData::<()>::error(429, "请求过于频繁，请稍后重试".into())),
+        )
+            .into_response();
+        set_rate_headers(resp.headers_mut(), remaining);
+        if let Ok(v) = HeaderValue::from_str(&WINDOW_SECS.to_string()) {
+            resp.headers_mut().insert("Retry-After", v);
+        }
+        return Err(resp);
     }
 
-    Ok(())
+    Ok((LIMIT - count).max(0))
 }
