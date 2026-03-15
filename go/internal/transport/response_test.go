@@ -14,7 +14,7 @@ import (
 
 func TestSuccess(t *testing.T) {
 	resp := success("hello")
-	assert.Equal(t, "OK", resp.Body.Code)
+	assert.Equal(t, 0, resp.Body.Code)
 	assert.Equal(t, "ok", resp.Body.Message)
 	assert.Equal(t, "hello", resp.Body.Data)
 }
@@ -22,7 +22,7 @@ func TestSuccess(t *testing.T) {
 func TestPagedSuccess(t *testing.T) {
 	items := []string{"a", "b"}
 	resp := pagedSuccess(items, 10, 1, 20)
-	assert.Equal(t, "OK", resp.Body.Code)
+	assert.Equal(t, 0, resp.Body.Code)
 	assert.Equal(t, []string{"a", "b"}, resp.Body.Data.Items)
 	assert.Equal(t, int64(10), resp.Body.Data.Total)
 	assert.Equal(t, 1, resp.Body.Data.Page)
@@ -38,7 +38,7 @@ func TestCustomErrorHandler_AppError(t *testing.T) {
 	appErr := model.NewAppError(model.ErrNotFound, "video not found")
 	CustomErrorHandler(appErr, c)
 	assert.Equal(t, http.StatusNotFound, rec.Code)
-	assert.Contains(t, rec.Body.String(), `"code":"NOT_FOUND"`)
+	assert.Contains(t, rec.Body.String(), `"code":404`)
 	assert.Contains(t, rec.Body.String(), `"message":"video not found"`)
 }
 
@@ -50,7 +50,7 @@ func TestCustomErrorHandler_EchoHTTPError(t *testing.T) {
 
 	CustomErrorHandler(echo.ErrNotFound, c)
 	assert.Equal(t, http.StatusNotFound, rec.Code)
-	assert.Contains(t, rec.Body.String(), `"code":"NOT_FOUND"`)
+	assert.Contains(t, rec.Body.String(), `"code":404`)
 }
 
 func TestHumaNewError_AppError(t *testing.T) {

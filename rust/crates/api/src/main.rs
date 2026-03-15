@@ -67,14 +67,7 @@ async fn main() {
         config,
     };
 
-    // Upload routes: no timeout + raised body limit (large file transfers)
-    let upload_routes = Router::new()
-        .route("/api/videos/upload", post(video::upload))
-        .route("/api/users/me/avatar", post(customer::upload_avatar))
-        .layer(axum::extract::DefaultBodyLimit::max(250 * 1024 * 1024));
-
-    // All other routes: 30s timeout
-    let api_routes = Router::new()
+    let app = Router::new()
         .route("/health", get(health))
         .route("/api/auth/register", post(auth::register))
         .route("/api/auth/login", post(auth::login))
@@ -86,6 +79,8 @@ async fn main() {
         .route("/api/videos", get(video::list))
         .route("/api/videos/featured", get(video::featured))
         .route("/api/videos/my", get(video::my_videos))
+        .route("/api/videos/upload-url", post(video::upload_url))
+        .route("/api/videos/confirm-upload", post(video::confirm_upload))
         .route("/api/videos/{id}", get(video::detail).delete(video::delete))
         .route("/api/videos/{id}/like", post(video::like).delete(video::unlike))
         .route("/api/videos/{videoId}/play-click", post(video::play_click))
@@ -96,6 +91,8 @@ async fn main() {
         .route("/api/tasks/claim/{progressId}", post(activity::claim_handler))
         // Users (me)
         .route("/api/users/me/profile", get(customer::get_my_profile).put(customer::update_my_profile))
+        .route("/api/users/me/avatar/upload-url", post(customer::avatar_upload_url))
+        .route("/api/users/me/avatar/confirm", post(customer::avatar_confirm))
         // Users (by id)
         .route("/api/users/{id}/following", get(customer::get_user_following))
         .route("/api/users/{id}/followers", get(customer::get_user_followers))
@@ -124,12 +121,7 @@ async fn main() {
         .layer(TimeoutLayer::with_status_code(
             axum::http::StatusCode::REQUEST_TIMEOUT,
             std::time::Duration::from_secs(30),
-        ));
-
-    // Merge: upload (no timeout) + api (with timeout), then shared layers
-    let app = Router::new()
-        .merge(upload_routes)
-        .merge(api_routes)
+        ))
         .layer(TraceLayer::new_for_http())
         .layer(CompressionLayer::new())
         .layer(axum::middleware::from_fn_with_state(

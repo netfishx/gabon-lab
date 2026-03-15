@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"io"
 	"path/filepath"
 	"strings"
 	"time"
@@ -40,35 +39,43 @@ func (s *UserService) avatarBucket() string {
 	return s.storage.BucketAvatars()
 }
 
-type UploadAvatarRequest struct {
-	FileName    string
-	ContentType string
-	Body        io.Reader
+// AvatarPresignResult is returned when generating a presigned avatar upload URL.
+type AvatarPresignResult struct {
+	UploadURL string `json:"uploadUrl"`
+	AvatarURL string `json:"avatarUrl"`
 }
 
-type UploadAvatarResponse struct {
-	AvatarURL string `json:"avatar_url"`
-}
+// GenerateAvatarUploadURL generates a presigned PUT URL for avatar upload.
+func (s *UserService) GenerateAvatarUploadURL(ctx context.Context, customerID int64, fileName, contentType string) (*AvatarPresignResult, error) {
+	ext := filepath.Ext(fileName)
+	if ext == "" {
+		ext = ".jpg"
+	}
+	key := fmt.Sprintf("%d/%s%s", customerID, uuid.New().String(), ext)
 
-func (s *UserService) UploadAvatar(ctx context.Context, customerID int64, req *UploadAvatarRequest) (*UploadAvatarResponse, error) {
-	ext := filepath.Ext(req.FileName)
-	storagePath := fmt.Sprintf("%d/%s%s", customerID, uuid.New().String(), ext)
-
-	avatarURL, err := s.storage.Upload(ctx, s.avatarBucket(), storagePath, req.ContentType, req.Body)
+	uploadURL, err := s.storage.GeneratePresignedUploadURL(ctx, s.avatarBucket(), key, contentType, 60)
 	if err != nil {
 		return nil, err
 	}
 
-	// Update customer profile with new avatar URL
-	_, err = s.repo.UpdateCustomerProfile(ctx, repository.UpdateCustomerProfileParams{
+	avatarURL := s.storage.BuildPublicURL(s.avatarBucket(), key)
+
+	return &AvatarPresignResult{
+		UploadURL: uploadURL,
+		AvatarURL: avatarURL,
+	}, nil
+}
+
+// ConfirmAvatarUpload updates the customer's avatar URL after client has uploaded to S3.
+func (s *UserService) ConfirmAvatarUpload(ctx context.Context, customerID int64, avatarURL string) error {
+	_, err := s.repo.UpdateCustomerProfile(ctx, repository.UpdateCustomerProfileParams{
 		AvatarUrl: avatarURL,
 		ID:        customerID,
 	})
 	if err != nil {
-		return nil, model.WrapError(model.ErrInternal, "failed to update avatar", err)
+		return model.WrapError(model.ErrInternal, "failed to update avatar", err)
 	}
-
-	return &UploadAvatarResponse{AvatarURL: avatarURL}, nil
+	return nil
 }
 
 type ProfileResponse struct {

@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"io"
 	"path/filepath"
 	"time"
 
@@ -46,37 +45,70 @@ func (s *VideoService) videoBucket() string {
 	return s.storage.BucketVideos()
 }
 
-type UploadVideoRequest struct {
-	FileName    string
-	FileSize    int64
-	ContentType string
-	Body        io.Reader
-	Title       string
-	Description string
+// PresignedUploadResult is returned when generating a presigned upload URL.
+type PresignedUploadResult struct {
+	UploadURL string `json:"uploadUrl"`
+	FileURL   string `json:"fileUrl"`
+	S3Key     string `json:"s3Key"`
 }
 
-func (s *VideoService) UploadVideo(ctx context.Context, customerID int64, req *UploadVideoRequest) (*repository.Video, error) {
-	ext := filepath.Ext(req.FileName)
-	storagePath := fmt.Sprintf("%d/%s%s", customerID, uuid.New().String(), ext)
+// GenerateVideoUploadURL generates a presigned PUT URL for video upload.
+func (s *VideoService) GenerateVideoUploadURL(ctx context.Context, customerID int64, fileName, contentType string) (*PresignedUploadResult, error) {
+	ext := filepath.Ext(fileName)
+	if ext == "" {
+		ext = ".mp4"
+	}
+	key := fmt.Sprintf("%d/%s%s", customerID, uuid.New().String(), ext)
 
-	fileURL, err := s.storage.Upload(ctx, s.videoBucket(), storagePath, req.ContentType, req.Body)
+	uploadURL, err := s.storage.GeneratePresignedUploadURL(ctx, s.videoBucket(), key, contentType, 60)
 	if err != nil {
 		return nil, err
 	}
 
+	fileURL := s.storage.BuildPublicURL(s.videoBucket(), key)
+
+	return &PresignedUploadResult{
+		UploadURL: uploadURL,
+		FileURL:   fileURL,
+		S3Key:     key,
+	}, nil
+}
+
+// ConfirmVideoUploadRequest is the body for confirm-upload endpoint.
+type ConfirmVideoUploadRequest struct {
+	S3Key       string  `json:"s3Key"`
+	FileName    string  `json:"fileName"`
+	FileSize    int64   `json:"fileSize"`
+	MimeType    string  `json:"mimeType"`
+	Title       *string `json:"title"`
+	Description *string `json:"description"`
+	Duration    *int32  `json:"duration"`
+}
+
+// ConfirmVideoUpload creates the video record after client has uploaded to S3.
+func (s *VideoService) ConfirmVideoUpload(ctx context.Context, customerID int64, req *ConfirmVideoUploadRequest) (*repository.Video, error) {
+	fileURL := s.storage.BuildPublicURL(s.videoBucket(), req.S3Key)
+
+	title := ""
+	if req.Title != nil {
+		title = *req.Title
+	}
+	desc := ""
+	if req.Description != nil {
+		desc = *req.Description
+	}
+
 	video, err := s.repo.CreateVideo(ctx, repository.CreateVideoParams{
 		CustomerID:  customerID,
-		Title:       pgtype.Text{String: req.Title, Valid: req.Title != ""},
-		Description: pgtype.Text{String: req.Description, Valid: req.Description != ""},
+		Title:       pgtype.Text{String: title, Valid: title != ""},
+		Description: pgtype.Text{String: desc, Valid: desc != ""},
 		FileName:    req.FileName,
 		FileSize:    req.FileSize,
 		FileUrl:     fileURL,
-		MimeType:    req.ContentType,
+		MimeType:    req.MimeType,
 		Status:      3, // 待审核
 	})
 	if err != nil {
-		// Best-effort cleanup of uploaded file
-		_ = s.storage.Delete(ctx, s.videoBucket(), storagePath)
 		return nil, model.WrapError(model.ErrInternal, "failed to create video", err)
 	}
 

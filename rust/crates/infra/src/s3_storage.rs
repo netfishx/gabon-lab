@@ -84,6 +84,50 @@ impl S3Storage {
         Ok(format!("{}/{bucket}/{key}", self.endpoint))
     }
 
+    /// Generate a presigned PUT URL for direct client upload.
+    ///
+    /// # Errors
+    ///
+    /// Returns `S3Error::Presign` if presigning fails.
+    pub async fn presign_put(
+        &self,
+        bucket: &str,
+        key: &str,
+        content_type: &str,
+        duration_secs: u64,
+    ) -> Result<String, S3Error> {
+        let Some(client) = &self.client else {
+            return Ok(format!(
+                "https://s3.example.com/presign-put/{bucket}/{key}"
+            ));
+        };
+
+        use aws_sdk_s3::presigning::PresigningConfig;
+        let presigning = PresigningConfig::builder()
+            .expires_in(std::time::Duration::from_secs(duration_secs))
+            .build()
+            .map_err(|e| S3Error::Presign(e.to_string()))?;
+
+        let presigned = client
+            .put_object()
+            .bucket(bucket)
+            .key(key)
+            .content_type(content_type)
+            .presigned(presigning)
+            .await
+            .map_err(|e| S3Error::Presign(e.to_string()))?;
+
+        Ok(presigned.uri().to_string())
+    }
+
+    /// Build the public URL for an object.
+    pub fn build_public_url(&self, bucket: &str, key: &str) -> String {
+        if self.client.is_none() {
+            return format!("https://s3.example.com/{bucket}/{key}");
+        }
+        format!("{}/{bucket}/{key}", self.endpoint)
+    }
+
     /// Delete an object from the given bucket.
     ///
     /// # Errors
@@ -110,6 +154,9 @@ impl S3Storage {
 pub enum S3Error {
     #[error("S3 upload failed: {0}")]
     Upload(String),
+
+    #[error("S3 presign failed: {0}")]
+    Presign(String),
 
     #[error("S3 delete failed: {0}")]
     Delete(String),
@@ -145,6 +192,23 @@ mod tests {
         config.secret_key = "test-secret".into();
         let storage = S3Storage::new(&config);
         assert!(storage.client.is_some());
+    }
+
+    #[tokio::test]
+    async fn stub_presign_put_returns_example_url() {
+        let storage = S3Storage::new(&stub_config());
+        let url = storage
+            .presign_put("test-bucket", "test.mp4", "video/mp4", 3600)
+            .await
+            .unwrap();
+        assert_eq!(url, "https://s3.example.com/presign-put/test-bucket/test.mp4");
+    }
+
+    #[test]
+    fn stub_build_public_url() {
+        let storage = S3Storage::new(&stub_config());
+        let url = storage.build_public_url("test-bucket", "test.mp4");
+        assert_eq!(url, "https://s3.example.com/test-bucket/test.mp4");
     }
 
     #[tokio::test]

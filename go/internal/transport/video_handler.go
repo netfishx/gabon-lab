@@ -2,7 +2,6 @@ package transport
 
 import (
 	"context"
-	"mime/multipart"
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -42,43 +41,41 @@ type MyVideoListInput struct {
 	Status int16 `query:"status" doc:"视频状态过滤"`
 }
 
+// --- Input types for presigned URL upload ---
+
+type VideoUploadURLInput struct {
+	Body struct {
+		FileName    string `json:"fileName" doc:"文件名"`
+		ContentType string `json:"contentType" doc:"MIME类型"`
+	}
+}
+
+type ConfirmVideoUploadInput struct {
+	Body service.ConfirmVideoUploadRequest
+}
+
 // --- Handlers ---
 
-func (h *VideoHandler) UploadVideo(ctx context.Context, _ *struct{}) (*OkResponse[any], error) {
+func (h *VideoHandler) GetVideoUploadURL(ctx context.Context, input *VideoUploadURLInput) (*OkResponse[*service.PresignedUploadResult], error) {
 	customerID, ok := ctx.Value(middleware.CustomerIDKey).(int64)
 	if !ok {
 		return nil, model.NewAppError(model.ErrUnauthorized, "missing customer identity")
 	}
 
-	humaCtx, ok := ctx.Value(middleware.HumaCtxKey).(huma.Context)
-	if !ok {
-		return nil, model.NewAppError(model.ErrInternal, "missing request context")
-	}
-
-	form, err := humaCtx.GetMultipartForm()
-	if err != nil {
-		return nil, model.NewAppError(model.ErrBadRequest, "invalid multipart form")
-	}
-
-	fh, err := firstFile(form, "file")
+	result, err := h.svc.GenerateVideoUploadURL(ctx, customerID, input.Body.FileName, input.Body.ContentType)
 	if err != nil {
 		return nil, err
 	}
+	return success(result), nil
+}
 
-	src, err := fh.Open()
-	if err != nil {
-		return nil, model.NewAppError(model.ErrInternal, "failed to open uploaded file")
+func (h *VideoHandler) ConfirmVideoUpload(ctx context.Context, input *ConfirmVideoUploadInput) (*OkResponse[any], error) {
+	customerID, ok := ctx.Value(middleware.CustomerIDKey).(int64)
+	if !ok {
+		return nil, model.NewAppError(model.ErrUnauthorized, "missing customer identity")
 	}
-	defer func() { _ = src.Close() }()
 
-	video, err := h.svc.UploadVideo(ctx, customerID, &service.UploadVideoRequest{
-		FileName:    fh.Filename,
-		FileSize:    fh.Size,
-		ContentType: fh.Header.Get("Content-Type"),
-		Body:        src,
-		Title:       formValue(form, "title"),
-		Description: formValue(form, "description"),
-	})
+	video, err := h.svc.ConfirmVideoUpload(ctx, customerID, &input.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -205,13 +202,6 @@ func (h *VideoHandler) PlayValid(ctx context.Context, input *VideoIDInput) (*OkR
 	return success[any](nil), nil
 }
 
-func formValue(form *multipart.Form, key string) string {
-	if vs, ok := form.Value[key]; ok && len(vs) > 0 {
-		return vs[0]
-	}
-	return ""
-}
-
 // --- Route registration ---
 
 func (h *VideoHandler) RegisterRoutes(api huma.API, authCfg middleware.AuthConfig, rlPub, rlUser middleware.RateLimitConfig) {
@@ -247,15 +237,25 @@ func (h *VideoHandler) RegisterRoutes(api huma.API, authCfg middleware.AuthConfi
 	}, h.GetVideo)
 
 	huma.Register(api, huma.Operation{
-		OperationID:   "upload-video",
+		OperationID: "get-video-upload-url",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/videos/upload-url",
+		Summary:     "获取视频上传预签名URL",
+		Tags:        []string{"Video"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+		Middlewares: userAuth,
+	}, h.GetVideoUploadURL)
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "confirm-video-upload",
 		Method:        http.MethodPost,
-		Path:          "/api/v1/videos/upload",
-		Summary:       "上传视频",
+		Path:          "/api/v1/videos/confirm-upload",
+		Summary:       "确认视频上传",
 		Tags:          []string{"Video"},
 		Security:      []map[string][]string{{"bearerAuth": {}}},
 		DefaultStatus: http.StatusCreated,
 		Middlewares:   userAuth,
-	}, h.UploadVideo)
+	}, h.ConfirmVideoUpload)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "list-my-videos",

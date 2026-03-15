@@ -91,7 +91,7 @@ func TestRequireCustomerAuth_MissingToken(t *testing.T) {
 	e.ServeHTTP(rec, req)
 
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
-	assert.Contains(t, rec.Body.String(), "UNAUTHORIZED")
+	assert.Contains(t, rec.Body.String(), `"code":401`)
 }
 
 func TestRequireCustomerAuth_InvalidToken(t *testing.T) {
@@ -102,7 +102,7 @@ func TestRequireCustomerAuth_InvalidToken(t *testing.T) {
 	e.ServeHTTP(rec, req)
 
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
-	assert.Contains(t, rec.Body.String(), "TOKEN_INVALID")
+	assert.Contains(t, rec.Body.String(), `"code":401`)
 }
 
 func TestRequireCustomerAuth_ValidToken(t *testing.T) {

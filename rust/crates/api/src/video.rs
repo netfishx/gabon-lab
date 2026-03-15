@@ -1,4 +1,5 @@
-use axum::extract::{Multipart, Path, Query, State};
+use axum::extract::{Path, Query, State};
+use axum::Json;
 use serde::Deserialize;
 
 use gabon_infra::video_repo::PgVideoRepo;
@@ -161,90 +162,82 @@ pub async fn user_videos(
     Ok(JsonData::ok(Paginated::new(items, page, size, total)))
 }
 
-// ─── Upload ───────────────────────────────────
+// ─── Presigned URL Upload ────────────────────
 
-const MAX_VIDEO_SIZE: usize = 200 * 1024 * 1024; // 200 MB
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PresignUploadRequest {
+    pub file_name: String,
+    pub content_type: String,
+}
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct UploadResponse {
-    pub resource_url: String,
+pub struct PresignUploadResponse {
+    pub upload_url: String,
+    pub file_url: String,
+    pub s3_key: String,
+}
+
+pub async fn upload_url(
+    State(state): State<AppState>,
+    AuthCustomer(claims): AuthCustomer,
+    Json(body): Json<PresignUploadRequest>,
+) -> Result<JsonData<PresignUploadResponse>, AppError> {
+    let ext = body.file_name.rsplit('.').next().unwrap_or("mp4");
+    let id = uuid::Uuid::new_v4();
+    let key = format!("videos/{}/{id}.{ext}", claims.sub);
+
+    let upload_url = state
+        .s3
+        .presign_put(&state.config.s3.bucket_videos, &key, &body.content_type, 3600)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    let file_url = state.s3.build_public_url(&state.config.s3.bucket_videos, &key);
+
+    Ok(JsonData::ok(PresignUploadResponse {
+        upload_url,
+        file_url,
+        s3_key: key,
+    }))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfirmUploadRequest {
+    pub s3_key: String,
+    pub file_name: String,
+    pub file_size: i64,
+    pub mime_type: String,
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub duration: Option<i32>,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfirmUploadResponse {
     pub video_id: i64,
 }
 
-pub async fn upload(
+pub async fn confirm_upload(
     State(state): State<AppState>,
     AuthCustomer(claims): AuthCustomer,
-    mut multipart: Multipart,
-) -> Result<JsonData<UploadResponse>, AppError> {
-    let mut file_data: Option<(String, Vec<u8>)> = None; // (content_type, bytes)
-    let mut title: Option<String> = None;
-    let mut description: Option<String> = None;
-
-    while let Some(field) = multipart
-        .next_field()
-        .await
-        .map_err(|e| AppError::BadRequest(format!("multipart 解析失败: {e}")))?
-    {
-        match field.name() {
-            Some("file") => {
-                let content_type = field.content_type().unwrap_or("video/mp4").to_string();
-                let data = field
-                    .bytes()
-                    .await
-                    .map_err(|e| AppError::BadRequest(format!("读取文件失败: {e}")))?;
-                file_data = Some((content_type, data.to_vec()));
-            }
-            Some("title") => {
-                title = field.text().await.ok().filter(|s| !s.is_empty());
-            }
-            Some("description") => {
-                description = field.text().await.ok().filter(|s| !s.is_empty());
-            }
-            _ => {}
-        }
-    }
-
-    let (content_type, data) =
-        file_data.ok_or_else(|| AppError::BadRequest("缺少 file 字段".into()))?;
-
-    let data_len = data.len();
-    if data_len > MAX_VIDEO_SIZE {
-        return Err(AppError::BadRequest(format!(
-            "文件过大，最大 {}MB",
-            MAX_VIDEO_SIZE / 1024 / 1024
-        )));
-    }
-
-    let ext = mime_to_ext(&content_type);
-    let id = uuid::Uuid::new_v4();
-    let key = format!("videos/{id}.{ext}");
-
-    let resource_url = state
-        .s3
-        .upload(
-            &state.config.s3.bucket_videos,
-            &key,
-            &content_type,
-            data,
-        )
-        .await
-        .map_err(|e| AppError::Internal(e.to_string()))?;
-
-    let file_name = format!("{id}.{ext}");
-    let file_size = data_len as i64;
+    Json(body): Json<ConfirmUploadRequest>,
+) -> Result<JsonData<ConfirmUploadResponse>, AppError> {
+    let file_url = state.s3.build_public_url(&state.config.s3.bucket_videos, &body.s3_key);
     let repo = PgVideoRepo { pool: &state.db };
     let video_id = repo
         .create_video(
             claims.sub,
-            title.as_deref(),
-            description.as_deref(),
-            &file_name,
-            file_size,
-            &resource_url,
-            &content_type,
+            body.title.as_deref(),
+            body.description.as_deref(),
+            &body.file_name,
+            body.file_size,
+            &file_url,
+            &body.mime_type,
             None,
-            None,
+            body.duration,
         )
         .await
         .map_err(|e| {
@@ -252,15 +245,7 @@ pub async fn upload(
             e
         })?;
 
-    Ok(JsonData::ok(UploadResponse { resource_url, video_id }))
-}
-
-fn mime_to_ext(content_type: &str) -> &str {
-    match content_type {
-        "video/webm" => "webm",
-        "video/quicktime" => "mov",
-        _ => "mp4",
-    }
+    Ok(JsonData::ok(ConfirmUploadResponse { video_id }))
 }
 
 #[cfg(test)]
@@ -404,21 +389,22 @@ mod tests {
     }
 
     #[test]
-    fn upload_response_serializes_camel_case() {
-        let resp = UploadResponse {
-            resource_url: "https://cdn.example.com/videos/123.mp4".into(),
-            video_id: 42,
+    fn presign_upload_response_serializes_camel_case() {
+        let resp = PresignUploadResponse {
+            upload_url: "https://s3.example.com/presign-put/bucket/key".into(),
+            file_url: "https://s3.example.com/bucket/key".into(),
+            s3_key: "videos/1/abc.mp4".into(),
         };
         let json = serde_json::to_value(&resp).unwrap();
-        assert!(json["resourceUrl"].is_string());
-        assert_eq!(json["videoId"], 42);
+        assert!(json["uploadUrl"].is_string());
+        assert!(json["fileUrl"].is_string());
+        assert_eq!(json["s3Key"], "videos/1/abc.mp4");
     }
 
     #[test]
-    fn mime_to_ext_maps_correctly() {
-        assert_eq!(mime_to_ext("video/mp4"), "mp4");
-        assert_eq!(mime_to_ext("video/webm"), "webm");
-        assert_eq!(mime_to_ext("video/quicktime"), "mov");
-        assert_eq!(mime_to_ext("application/octet-stream"), "mp4");
+    fn confirm_upload_response_serializes_camel_case() {
+        let resp = ConfirmUploadResponse { video_id: 42 };
+        let json = serde_json::to_value(&resp).unwrap();
+        assert_eq!(json["videoId"], 42);
     }
 }

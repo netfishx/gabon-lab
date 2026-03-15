@@ -1,4 +1,4 @@
-use axum::extract::{Multipart, Path, Query, State};
+use axum::extract::{Path, Query, State};
 use axum::Json;
 use serde::Deserialize;
 
@@ -89,65 +89,63 @@ pub async fn update_my_profile(
     Ok(JsonData::ok(profile))
 }
 
-const MAX_AVATAR_SIZE: usize = 5 * 1024 * 1024; // 5 MB
-
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AvatarResponse {
     pub avatar_url: String,
 }
 
-pub async fn upload_avatar(
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AvatarPresignRequest {
+    pub file_name: String,
+    pub content_type: String,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AvatarPresignResponse {
+    pub upload_url: String,
+    pub avatar_url: String,
+}
+
+pub async fn avatar_upload_url(
     State(state): State<AppState>,
     AuthCustomer(claims): AuthCustomer,
-    mut multipart: Multipart,
-) -> Result<JsonData<AvatarResponse>, AppError> {
-    let field = multipart
-        .next_field()
-        .await
-        .map_err(|e| AppError::BadRequest(format!("multipart 解析失败: {e}")))?
-        .ok_or_else(|| AppError::BadRequest("缺少文件字段".into()))?;
-
-    let content_type = field
-        .content_type()
-        .unwrap_or("image/jpeg")
-        .to_string();
-
-    let data = field
-        .bytes()
-        .await
-        .map_err(|e| AppError::BadRequest(format!("读取文件失败: {e}")))?;
-
-    if data.len() > MAX_AVATAR_SIZE {
-        return Err(AppError::BadRequest(format!(
-            "文件过大，最大 {}MB",
-            MAX_AVATAR_SIZE / 1024 / 1024
-        )));
-    }
-
-    let ext = match content_type.as_str() {
-        "image/png" => "png",
-        "image/webp" => "webp",
-        "image/gif" => "gif",
-        _ => "jpg",
-    };
+    Json(body): Json<AvatarPresignRequest>,
+) -> Result<JsonData<AvatarPresignResponse>, AppError> {
+    let ext = body.file_name.rsplit('.').next().unwrap_or("jpg");
     let key = format!("avatars/{}.{ext}", claims.sub);
 
-    let avatar_url = state
+    let upload_url = state
         .s3
-        .upload(
-            &state.config.s3.bucket_avatars,
-            &key,
-            &content_type,
-            data.to_vec(),
-        )
+        .presign_put(&state.config.s3.bucket_avatars, &key, &body.content_type, 3600)
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
+    let avatar_url = state.s3.build_public_url(&state.config.s3.bucket_avatars, &key);
 
+    Ok(JsonData::ok(AvatarPresignResponse {
+        upload_url,
+        avatar_url,
+    }))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AvatarConfirmRequest {
+    pub avatar_url: String,
+}
+
+pub async fn avatar_confirm(
+    State(state): State<AppState>,
+    AuthCustomer(claims): AuthCustomer,
+    Json(body): Json<AvatarConfirmRequest>,
+) -> Result<JsonData<AvatarResponse>, AppError> {
     let repo = PgAuthRepo { pool: &state.db };
-    repo.update_avatar(claims.sub, &avatar_url).await?;
-
-    Ok(JsonData::ok(AvatarResponse { avatar_url }))
+    repo.update_avatar(claims.sub, &body.avatar_url).await?;
+    Ok(JsonData::ok(AvatarResponse {
+        avatar_url: body.avatar_url,
+    }))
 }
 
 // ─── /api/users/{id}/following, /api/users/{id}/followers ──

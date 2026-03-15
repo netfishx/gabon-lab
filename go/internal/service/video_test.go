@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -264,22 +263,36 @@ func (m *mockVideoRepo) CreatePlayRecord(_ context.Context, arg repository.Creat
 
 // --- Tests ---
 
-func TestVideo_UploadVideo(t *testing.T) {
+func TestVideo_GenerateVideoUploadURL(t *testing.T) {
 	storage := NewStorageService(&config.S3Config{
 		BucketVideos:  "test-videos",
 		BucketAvatars: "test-avatars",
 	}) // stub mode (no endpoint)
 	svc := NewVideoService(newMockVideoRepo(), storage)
 
-	v, err := svc.UploadVideo(context.Background(), 1, &UploadVideoRequest{
-		FileName: "test.mp4", FileSize: 1024, ContentType: "video/mp4",
-		Body: strings.NewReader("fake-video-data"), Title: "My Video",
+	result, err := svc.GenerateVideoUploadURL(context.Background(), 1, "test.mp4", "video/mp4")
+	require.NoError(t, err)
+	assert.Contains(t, result.UploadURL, "stub.local/presign-put/test-videos/")
+	assert.Contains(t, result.FileURL, "stub.local/storage/test-videos/")
+	assert.NotEmpty(t, result.S3Key)
+}
+
+func TestVideo_ConfirmVideoUpload(t *testing.T) {
+	storage := NewStorageService(&config.S3Config{
+		BucketVideos:  "test-videos",
+		BucketAvatars: "test-avatars",
+	})
+	svc := NewVideoService(newMockVideoRepo(), storage)
+
+	title := "My Video"
+	v, err := svc.ConfirmVideoUpload(context.Background(), 1, &ConfirmVideoUploadRequest{
+		S3Key: "1/abc.mp4", FileName: "test.mp4", FileSize: 1024,
+		MimeType: "video/mp4", Title: &title,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), v.CustomerID)
 	assert.Equal(t, int16(3), v.Status)
 	assert.Equal(t, "My Video", v.Title.String)
-	assert.Contains(t, v.FileUrl, "stub.local/storage/test-videos/")
 }
 
 func TestVideo_GetVideo_Approved(t *testing.T) {

@@ -2,7 +2,6 @@ package transport
 
 import (
 	"context"
-	"mime/multipart"
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -78,42 +77,42 @@ func (h *UserHandler) UpdateMyProfile(ctx context.Context, input *UpdateProfileI
 	return success(p), nil
 }
 
-func (h *UserHandler) UploadAvatar(ctx context.Context, _ *struct{}) (*OkResponse[*service.UploadAvatarResponse], error) {
+type AvatarUploadURLInput struct {
+	Body struct {
+		FileName    string `json:"fileName" doc:"文件名"`
+		ContentType string `json:"contentType" doc:"MIME类型"`
+	}
+}
+
+type AvatarConfirmInput struct {
+	Body struct {
+		AvatarURL string `json:"avatarUrl" doc:"头像URL"`
+	}
+}
+
+func (h *UserHandler) GetAvatarUploadURL(ctx context.Context, input *AvatarUploadURLInput) (*OkResponse[*service.AvatarPresignResult], error) {
 	customerID, ok := ctx.Value(middleware.CustomerIDKey).(int64)
 	if !ok {
 		return nil, model.NewAppError(model.ErrUnauthorized, "missing customer identity")
 	}
 
-	humaCtx, ok := ctx.Value(middleware.HumaCtxKey).(huma.Context)
+	result, err := h.svc.GenerateAvatarUploadURL(ctx, customerID, input.Body.FileName, input.Body.ContentType)
+	if err != nil {
+		return nil, err
+	}
+	return success(result), nil
+}
+
+func (h *UserHandler) ConfirmAvatar(ctx context.Context, input *AvatarConfirmInput) (*OkResponse[any], error) {
+	customerID, ok := ctx.Value(middleware.CustomerIDKey).(int64)
 	if !ok {
-		return nil, model.NewAppError(model.ErrInternal, "missing request context")
+		return nil, model.NewAppError(model.ErrUnauthorized, "missing customer identity")
 	}
 
-	form, err := humaCtx.GetMultipartForm()
-	if err != nil {
-		return nil, model.NewAppError(model.ErrBadRequest, "invalid multipart form")
-	}
-
-	fh, err := firstFile(form, "file")
-	if err != nil {
+	if err := h.svc.ConfirmAvatarUpload(ctx, customerID, input.Body.AvatarURL); err != nil {
 		return nil, err
 	}
-
-	src, err := fh.Open()
-	if err != nil {
-		return nil, model.NewAppError(model.ErrInternal, "failed to open uploaded file")
-	}
-	defer func() { _ = src.Close() }()
-
-	resp, err := h.svc.UploadAvatar(ctx, customerID, &service.UploadAvatarRequest{
-		FileName:    fh.Filename,
-		ContentType: fh.Header.Get("Content-Type"),
-		Body:        src,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return success(resp), nil
+	return success[any](map[string]string{"avatarUrl": input.Body.AvatarURL}), nil
 }
 
 func (h *UserHandler) GetUserProfile(ctx context.Context, input *UserIDInput) (*OkResponse[*service.PublicProfileResponse], error) {
@@ -198,16 +197,6 @@ func (h *UserHandler) GetUserFollowers(ctx context.Context, input *UserIDPaginat
 	return pagedSuccess(items, total, input.Page, input.PageSize), nil
 }
 
-// --- Helpers ---
-
-func firstFile(form *multipart.Form, key string) (*multipart.FileHeader, error) {
-	files := form.File[key]
-	if len(files) == 0 {
-		return nil, model.NewAppError(model.ErrBadRequest, "file is required")
-	}
-	return files[0], nil
-}
-
 // --- Route registration ---
 
 func (h *UserHandler) RegisterRoutes(api huma.API, authCfg middleware.AuthConfig, rlPub, rlUser middleware.RateLimitConfig) {
@@ -237,14 +226,24 @@ func (h *UserHandler) RegisterRoutes(api huma.API, authCfg middleware.AuthConfig
 	}, h.UpdateMyProfile)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "upload-avatar",
+		OperationID: "get-avatar-upload-url",
 		Method:      http.MethodPost,
-		Path:        "/api/v1/users/me/avatar",
-		Summary:     "上传头像",
+		Path:        "/api/v1/users/me/avatar/upload-url",
+		Summary:     "获取头像上传预签名URL",
 		Tags:        []string{"User"},
 		Security:    []map[string][]string{{"bearerAuth": {}}},
 		Middlewares: meAuth,
-	}, h.UploadAvatar)
+	}, h.GetAvatarUploadURL)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "confirm-avatar-upload",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/users/me/avatar/confirm",
+		Summary:     "确认头像上传",
+		Tags:        []string{"User"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+		Middlewares: meAuth,
+	}, h.ConfirmAvatar)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "get-my-following",

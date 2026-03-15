@@ -7,7 +7,6 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"gabon-go/internal/model"
 	"gabon-go/internal/service"
 )
 
@@ -20,7 +19,6 @@ const (
 	AdminRoleKey
 	ClaimsKey
 	RealIPKey
-	HumaCtxKey // stores huma.Context for multipart access in handlers
 )
 
 // AuthConfig holds dependencies for auth middleware.
@@ -44,8 +42,7 @@ func customerAuth(cfg AuthConfig, required bool) func(huma.Context, func(huma.Co
 		tokenStr := extractBearerToken(ctx)
 		if tokenStr == "" {
 			if required {
-				writeError(ctx, http.StatusUnauthorized,
-					string(model.ErrUnauthorized), "missing authorization token")
+				writeError(ctx, http.StatusUnauthorized, "missing authorization token")
 				return
 			}
 			next(ctx)
@@ -55,8 +52,7 @@ func customerAuth(cfg AuthConfig, required bool) func(huma.Context, func(huma.Co
 		claims, err := cfg.JWT.ParseCustomerToken(tokenStr)
 		if err != nil {
 			if required {
-				writeError(ctx, http.StatusUnauthorized,
-					string(model.ErrTokenInvalid), "invalid token")
+				writeError(ctx, http.StatusUnauthorized, "invalid token")
 				return
 			}
 			next(ctx)
@@ -65,8 +61,7 @@ func customerAuth(cfg AuthConfig, required bool) func(huma.Context, func(huma.Co
 
 		if claims.TokenType != "access" {
 			if required {
-				writeError(ctx, http.StatusUnauthorized,
-					string(model.ErrTokenInvalid), "not an access token")
+				writeError(ctx, http.StatusUnauthorized, "not an access token")
 				return
 			}
 			next(ctx)
@@ -75,13 +70,11 @@ func customerAuth(cfg AuthConfig, required bool) func(huma.Context, func(huma.Co
 
 		blacklisted, err := cfg.TokenStore.IsBlacklisted(ctx.Context(), claims.JTI)
 		if err != nil {
-			writeError(ctx, http.StatusServiceUnavailable,
-				"SERVICE_UNAVAILABLE", "unable to verify token status")
+			writeError(ctx, http.StatusServiceUnavailable, "unable to verify token status")
 			return
 		}
 		if blacklisted {
-			writeError(ctx, http.StatusUnauthorized,
-				string(model.ErrTokenInvalid), "token has been revoked")
+			writeError(ctx, http.StatusUnauthorized, "token has been revoked")
 			return
 		}
 
@@ -96,48 +89,34 @@ func RequireAdminAuth(cfg AuthConfig) func(huma.Context, func(huma.Context)) {
 	return func(ctx huma.Context, next func(huma.Context)) {
 		tokenStr := extractBearerToken(ctx)
 		if tokenStr == "" {
-			writeError(ctx, http.StatusUnauthorized,
-				string(model.ErrUnauthorized), "missing authorization token")
+			writeError(ctx, http.StatusUnauthorized, "missing authorization token")
 			return
 		}
 
 		claims, err := cfg.JWT.ParseAdminToken(tokenStr)
 		if err != nil {
-			writeError(ctx, http.StatusUnauthorized,
-				string(model.ErrTokenInvalid), "invalid admin token")
+			writeError(ctx, http.StatusUnauthorized, "invalid admin token")
 			return
 		}
 
 		if claims.TokenType != "access" {
-			writeError(ctx, http.StatusUnauthorized,
-				string(model.ErrTokenInvalid), "not an access token")
+			writeError(ctx, http.StatusUnauthorized, "not an access token")
 			return
 		}
 
 		blacklisted, err := cfg.TokenStore.IsBlacklisted(ctx.Context(), claims.JTI)
 		if err != nil {
-			writeError(ctx, http.StatusServiceUnavailable,
-				"SERVICE_UNAVAILABLE", "unable to verify token status")
+			writeError(ctx, http.StatusServiceUnavailable, "unable to verify token status")
 			return
 		}
 		if blacklisted {
-			writeError(ctx, http.StatusUnauthorized,
-				string(model.ErrTokenInvalid), "token has been revoked")
+			writeError(ctx, http.StatusUnauthorized, "token has been revoked")
 			return
 		}
 
 		ctx = huma.WithValue(ctx, AdminIDKey, claims.UserID)
 		ctx = huma.WithValue(ctx, AdminRoleKey, claims.Role)
 		ctx = huma.WithValue(ctx, ClaimsKey, claims)
-		next(ctx)
-	}
-}
-
-// StoreHumaContext makes huma.Context available in handler's context.Context
-// (needed for multipart form access in upload handlers).
-func StoreHumaContext() func(huma.Context, func(huma.Context)) {
-	return func(ctx huma.Context, next func(huma.Context)) {
-		ctx = huma.WithValue(ctx, HumaCtxKey, ctx)
 		next(ctx)
 	}
 }
@@ -175,11 +154,11 @@ func resolveRealIP(ctx huma.Context) string {
 	return addr
 }
 
-func writeError(ctx huma.Context, status int, code, message string) {
+func writeError(ctx huma.Context, status int, message string) {
 	ctx.SetStatus(status)
 	ctx.SetHeader("Content-Type", "application/json")
 	_ = json.NewEncoder(ctx.BodyWriter()).Encode(map[string]any{
-		"code":    code,
+		"code":    status,
 		"message": message,
 		"data":    nil,
 	})

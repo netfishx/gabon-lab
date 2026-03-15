@@ -37,8 +37,7 @@ func RateLimit(cfg RateLimitConfig) func(huma.Context, func(huma.Context)) {
 
 		count, err := slidingWindowCount(ctx.Context(), cfg.Redis, redisKey, windowStart, nowMicro, cfg.Window)
 		if err != nil {
-			writeError(ctx, http.StatusServiceUnavailable,
-				"SERVICE_UNAVAILABLE", "service temporarily unavailable")
+			writeError(ctx, http.StatusServiceUnavailable, "service temporarily unavailable")
 			return
 		}
 
@@ -53,8 +52,7 @@ func RateLimit(cfg RateLimitConfig) func(huma.Context, func(huma.Context)) {
 		if int(count) > cfg.Limit {
 			retryAfter := int(cfg.Window.Seconds())
 			ctx.SetHeader("Retry-After", strconv.Itoa(retryAfter))
-			writeError(ctx, http.StatusTooManyRequests,
-				"RATE_LIMITED", "too many requests, please try again later")
+			writeError(ctx, http.StatusTooManyRequests, "too many requests, please try again later")
 			return
 		}
 
