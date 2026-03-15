@@ -25,12 +25,12 @@ var shanghaiTZ = func() *time.Location {
 func PeriodKey(taskType int16, now time.Time) string {
 	t := now.In(shanghaiTZ)
 	switch taskType {
-	case 1: // daily
+	case model.TaskTypeDaily:
 		return t.Format("2006-01-02")
-	case 2: // weekly (ISO 8601)
+	case model.TaskTypeWeekly:
 		year, week := t.ISOWeek()
 		return fmt.Sprintf("%d-W%02d", year, week)
-	case 3: // monthly
+	case model.TaskTypeMonthly:
 		return t.Format("2006-01")
 	default:
 		return t.Format("2006-01-02")
@@ -152,7 +152,7 @@ func (s *TaskService) ListTasks(ctx context.Context, customerID int64, filter Ta
 			RewardDiamonds: d.RewardDiamonds,
 			IconURL:        d.IconUrl.String,
 			VipOnly:        d.VipOnly,
-			TaskStatus:     1, // default: in progress
+			TaskStatus:     model.TaskStatusInProgress,
 		}
 		if p, ok := progressMap[d.ID]; ok {
 			item.ProgressID = p.ID
@@ -192,7 +192,7 @@ func (s *TaskService) ClaimReward(ctx context.Context, progressID, customerID in
 	}
 
 	// Step 2: Status check
-	if progress.TaskStatus != 2 {
+	if progress.TaskStatus != model.TaskStatusCompleted {
 		return model.NewAppError(model.ErrTaskNotClaimable, "task is not completed")
 	}
 
@@ -223,7 +223,7 @@ type SignInResult struct {
 // It awards base diamonds and updates the customer's balance atomically.
 func (s *TaskService) SignIn(ctx context.Context, customerID int64) (*SignInResult, error) {
 	now := time.Now()
-	periodKey := PeriodKey(1, now) // daily
+	periodKey := PeriodKey(model.TaskTypeDaily, now) // daily
 
 	// Pre-check outside transaction (fast path)
 	signed, err := s.repo.HasSignedInToday(ctx, repository.HasSignedInTodayParams{
@@ -293,7 +293,7 @@ func (s *TaskService) OnValidPlay(ctx context.Context, customerID int64) {
 
 	for _, taskID := range taskIDs {
 		// For watch tasks, we only handle daily (type=1) period
-		pk := PeriodKey(1, now)
+		pk := PeriodKey(model.TaskTypeDaily, now)
 		_ = s.repo.IncrTaskProgressCount(ctx, repository.IncrTaskProgressCountParams{
 			CustomerID: customerID,
 			TaskID:     taskID,

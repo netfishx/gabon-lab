@@ -60,7 +60,7 @@ func (s *AdminService) Login(ctx context.Context, req *AdminLoginRequest) (*Auth
 		return nil, model.NewAppError(model.ErrInvalidCredentials, "invalid credentials")
 	}
 
-	if admin.Status != 1 {
+	if admin.Status != model.AdminStatusActive {
 		return nil, model.NewAppError(model.ErrForbidden, "account is disabled")
 	}
 
@@ -135,7 +135,7 @@ func (s *AdminService) Refresh(ctx context.Context, refreshToken string) (*AuthR
 }
 
 func adminRoleStr(role int16) string {
-	if role == 1 {
+	if role == model.AdminRoleSuperadmin {
 		return "superadmin"
 	}
 	return "admin"
@@ -173,7 +173,7 @@ type CreateAdminRequest struct {
 }
 
 func (s *AdminService) CreateAdmin(ctx context.Context, req *CreateAdminRequest) (*AdminProfile, error) {
-	if req.Role != 1 && req.Role != 2 {
+	if req.Role != model.AdminRoleSuperadmin && req.Role != model.AdminRoleAdmin {
 		return nil, model.NewAppError(model.ErrBadRequest, "invalid role: must be 1 (superadmin) or 2 (admin)")
 	}
 
@@ -188,7 +188,7 @@ func (s *AdminService) CreateAdmin(ctx context.Context, req *CreateAdminRequest)
 		Role:         req.Role,
 		FullName:     pgtype.Text{String: req.FullName, Valid: req.FullName != ""},
 		Phone:        pgtype.Text{String: req.Phone, Valid: req.Phone != ""},
-		Status:       1,
+		Status:       model.AdminStatusActive,
 	})
 	if err != nil {
 		return nil, model.WrapError(model.ErrUsernameExists, "username already exists", err)

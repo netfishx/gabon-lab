@@ -106,7 +106,7 @@ func (s *VideoService) ConfirmVideoUpload(ctx context.Context, customerID int64,
 		FileSize:    req.FileSize,
 		FileUrl:     fileURL,
 		MimeType:    req.MimeType,
-		Status:      3, // 待审核
+		Status:      model.VideoStatusPendingReview,
 	})
 	if err != nil {
 		return nil, model.WrapError(model.ErrInternal, "failed to create video", err)
@@ -142,7 +142,7 @@ func (s *VideoService) GetVideo(ctx context.Context, videoID int64, customerID *
 		return nil, model.NewAppError(model.ErrVideoNotFound, "video not found")
 	}
 
-	if v.Status != 4 && (customerID == nil || *customerID != v.CustomerID) {
+	if v.Status != model.VideoStatusApproved && (customerID == nil || *customerID != v.CustomerID) {
 		return nil, model.NewAppError(model.ErrVideoNotApproved, "video not approved")
 	}
 
@@ -315,7 +315,7 @@ func (s *VideoService) Like(ctx context.Context, videoID, customerID int64) erro
 	if err != nil {
 		return model.NewAppError(model.ErrVideoNotFound, "video not found")
 	}
-	if v.Status != 4 {
+	if v.Status != model.VideoStatusApproved {
 		return model.NewAppError(model.ErrVideoNotApproved, "video not approved")
 	}
 
@@ -338,7 +338,7 @@ func (s *VideoService) RecordClick(ctx context.Context, videoID int64, customerI
 	return s.repo.CreatePlayRecord(ctx, repository.CreatePlayRecordParams{
 		VideoID:    videoID,
 		CustomerID: toPgInt8(customerID),
-		PlayType:   1, // click
+		PlayType:   model.PlayTypeClick,
 		IpAddress:  pgtype.Text{String: ip, Valid: ip != ""},
 	})
 }
@@ -349,7 +349,7 @@ func (s *VideoService) RecordValidPlay(ctx context.Context, videoID int64, custo
 	return s.repo.CreatePlayRecord(ctx, repository.CreatePlayRecordParams{
 		VideoID:    videoID,
 		CustomerID: toPgInt8(customerID),
-		PlayType:   2, // valid play
+		PlayType:   model.PlayTypeValidPlay,
 		IpAddress:  pgtype.Text{String: ip, Valid: ip != ""},
 	})
 }
