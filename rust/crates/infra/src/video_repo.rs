@@ -1,7 +1,7 @@
 use sqlx::PgPool;
 
 use gabon_shared::error::AppError;
-use gabon_shared::traits::{MyVideoRow, VideoDetailRow, VideoListRow};
+use gabon_shared::traits::{CreateVideoParams, MyVideoRow, PlayType, VideoDetailRow, VideoListRow};
 
 pub struct PgVideoRepo<'a> {
     pub pool: &'a PgPool,
@@ -150,15 +150,17 @@ impl gabon_shared::traits::VideoRepo for PgVideoRepo<'_> {
         customer_id: Option<i64>,
         play_type: i16,
     ) -> Result<i64, AppError> {
-        if play_type == 1 {
+        let mut tx = self.pool.begin().await?;
+
+        if play_type == PlayType::TotalClick as i16 {
             sqlx::query("UPDATE videos SET total_clicks = total_clicks + 1, updated_at = NOW() WHERE id = $1 AND deleted_at IS NULL")
                 .bind(video_id)
-                .execute(self.pool)
+                .execute(&mut *tx)
                 .await?;
         } else {
             sqlx::query("UPDATE videos SET valid_clicks = valid_clicks + 1, updated_at = NOW() WHERE id = $1 AND deleted_at IS NULL")
                 .bind(video_id)
-                .execute(self.pool)
+                .execute(&mut *tx)
                 .await?;
         }
 
@@ -169,8 +171,10 @@ impl gabon_shared::traits::VideoRepo for PgVideoRepo<'_> {
         .bind(video_id)
         .bind(customer_id)
         .bind(play_type)
-        .fetch_one(self.pool)
+        .fetch_one(&mut *tx)
         .await?;
+
+        tx.commit().await?;
         Ok(id)
     }
 
@@ -190,21 +194,16 @@ impl gabon_shared::traits::VideoRepo for PgVideoRepo<'_> {
         let Some(row) = row else { return Ok(None) };
 
         let (viewer_liked, viewer_followed) = if let Some(uid) = viewer_id {
-            let liked: bool = sqlx::query_scalar(
-                "SELECT EXISTS(SELECT 1 FROM video_likes WHERE video_id = $1 AND customer_id = $2)",
+            sqlx::query_as::<_, (bool, bool)>(
+                r"SELECT
+                    EXISTS(SELECT 1 FROM video_likes WHERE video_id = $1 AND customer_id = $2),
+                    EXISTS(SELECT 1 FROM user_follows WHERE follower_id = $2 AND followed_id = $3)",
             )
             .bind(video_id)
             .bind(uid)
-            .fetch_one(self.pool)
-            .await?;
-            let followed: bool = sqlx::query_scalar(
-                "SELECT EXISTS(SELECT 1 FROM user_follows WHERE follower_id = $1 AND followed_id = $2)",
-            )
-            .bind(uid)
             .bind(row.author_id)
             .fetch_one(self.pool)
-            .await?;
-            (liked, followed)
+            .await?
         } else {
             (false, false)
         };
@@ -231,32 +230,21 @@ impl gabon_shared::traits::VideoRepo for PgVideoRepo<'_> {
         Ok(result.rows_affected() > 0)
     }
 
-    async fn create_video(
-        &self,
-        customer_id: i64,
-        title: Option<&str>,
-        description: Option<&str>,
-        file_name: &str,
-        file_size: i64,
-        file_url: &str,
-        mime_type: &str,
-        thumbnail_url: Option<&str>,
-        duration: Option<i32>,
-    ) -> Result<i64, AppError> {
+    async fn create_video(&self, params: &CreateVideoParams<'_>) -> Result<i64, AppError> {
         let id: i64 = sqlx::query_scalar(
             r"INSERT INTO videos (customer_id, title, description, file_name, file_size, file_url, mime_type, thumbnail_url, duration, status)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 3)
                RETURNING id",
         )
-        .bind(customer_id)
-        .bind(title)
-        .bind(description)
-        .bind(file_name)
-        .bind(file_size)
-        .bind(file_url)
-        .bind(mime_type)
-        .bind(thumbnail_url)
-        .bind(duration)
+        .bind(params.customer_id)
+        .bind(params.title)
+        .bind(params.description)
+        .bind(params.file_name)
+        .bind(params.file_size)
+        .bind(params.file_url)
+        .bind(params.mime_type)
+        .bind(params.thumbnail_url)
+        .bind(params.duration)
         .fetch_one(self.pool)
         .await?;
         Ok(id)

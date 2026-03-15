@@ -52,19 +52,7 @@ impl From<Customer> for CustomerProfile {
     }
 }
 
-/// Video status lifecycle:
-/// `0=FAILED`, `1=PENDING_TRANSCODE`, `2=TRANSCODING`,
-/// `3=PENDING_REVIEW`, `4=APPROVED`, `5=REJECTED`
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, sqlx::Type)]
-#[repr(i16)]
-pub enum VideoStatus {
-    Failed = 0,
-    PendingTranscode = 1,
-    Transcoding = 2,
-    PendingReview = 3,
-    Approved = 4,
-    Rejected = 5,
-}
+pub use gabon_shared::traits::VideoStatus;
 
 #[cfg(test)]
 mod tests {

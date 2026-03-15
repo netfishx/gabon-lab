@@ -1,7 +1,7 @@
 use sqlx::PgPool;
 
 use gabon_shared::error::AppError;
-use gabon_shared::traits::TaskProgressRow;
+use gabon_shared::traits::{TaskProgressRow, TaskStatus};
 
 pub struct PgActivityRepo<'a> {
     pub pool: &'a PgPool,
@@ -87,14 +87,16 @@ impl gabon_shared::traits::ActivityRepo for PgActivityRepo<'_> {
     async fn claim_task(&self, progress_id: i64, customer_id: i64, diamonds: i64) -> Result<(), AppError> {
         let mut tx = self.pool.begin().await?;
 
-        // Conditional UPDATE acts as row lock — only one concurrent request can match status=2
+        // Conditional UPDATE acts as row lock — only one concurrent request can match Completed
         let result = sqlx::query(
             r"UPDATE task_progress
-               SET task_status = 3, claimed_at = NOW(), updated_at = NOW()
-               WHERE id = $1 AND customer_id = $2 AND task_status = 2",
+               SET task_status = $3, claimed_at = NOW(), updated_at = NOW()
+               WHERE id = $1 AND customer_id = $2 AND task_status = $4",
         )
         .bind(progress_id)
         .bind(customer_id)
+        .bind(TaskStatus::Claimed as i16)
+        .bind(TaskStatus::Completed as i16)
         .execute(&mut *tx)
         .await?;
 

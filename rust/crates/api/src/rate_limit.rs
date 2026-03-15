@@ -55,8 +55,7 @@ fn resolve_client_ip(req: &Request<Body>) -> String {
 
     req.extensions()
         .get::<ConnectInfo<SocketAddr>>()
-        .map(|ci| ci.0.ip().to_string())
-        .unwrap_or_else(|| "0.0.0.0".into())
+        .map_or_else(|| "0.0.0.0".into(), |ci| ci.0.ip().to_string())
 }
 
 fn set_rate_headers(headers: &mut axum::http::HeaderMap, remaining: i64) {
@@ -79,19 +78,19 @@ async fn check_limit(pool: &deadpool_redis::Pool, ip: &str) -> Result<i64, Respo
         .duration_since(std::time::UNIX_EPOCH)
         .expect("system clock")
         .as_micros();
-    let window_start = now_us.saturating_sub(u128::from(WINDOW_SECS) * 1_000_000);
-    let member = uuid::Uuid::new_v4().to_string();
+    let now_us_u64 = u64::try_from(now_us).unwrap_or(u64::MAX);
+    let window_start = now_us_u64.saturating_sub(WINDOW_SECS * 1_000_000);
 
     let (count,): (i64,) = redis::pipe()
         .cmd("ZREMRANGEBYSCORE")
         .arg(&key)
         .arg(0u64)
-        .arg(window_start as u64)
+        .arg(window_start)
         .ignore()
         .cmd("ZADD")
         .arg(&key)
-        .arg(now_us as f64)
-        .arg(&member)
+        .arg(now_us_u64)
+        .arg(now_us_u64.to_string())
         .ignore()
         .cmd("ZCARD")
         .arg(&key)

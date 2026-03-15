@@ -151,7 +151,9 @@ pub fn verify_customer_token(token: &str, jwt_config: &JwtConfig) -> Result<Clai
     validation.set_audience(&["customer"]);
 
     let key = DecodingKey::from_secret(jwt_config.customer_secret.as_bytes());
-    let data = decode::<Claims>(token, &key, &validation).map_err(|_| AppError::Unauthorized)?;
+    let data = decode::<Claims>(token, &key, &validation)
+        .inspect_err(|e| tracing::debug!("customer JWT decode failed: {e}"))
+        .map_err(|_| AppError::Unauthorized)?;
 
     Ok(data.claims)
 }
@@ -367,8 +369,8 @@ mod tests {
         let repo = MockAuthRepo::with_customer(test_customer_row());
         let store = MockTokenStore::new();
         let config = test_jwt_config();
-        let result = register(&repo, &store, &config, "testuser", "password123").await;
-        assert!(result.is_err());
+        let err = register(&repo, &store, &config, "testuser", "password123").await.unwrap_err();
+        assert!(matches!(err, AppError::Conflict(_)), "expected Conflict, got {err:?}");
     }
 
     // ─── login tests ──────────────────────────────
@@ -389,8 +391,8 @@ mod tests {
         let repo = MockAuthRepo::with_customer(test_customer_row());
         let store = MockTokenStore::new();
         let config = test_jwt_config();
-        let result = login(&repo, &store, &config, "testuser", "wrongpass").await;
-        assert!(result.is_err());
+        let err = login(&repo, &store, &config, "testuser", "wrongpass").await.unwrap_err();
+        assert!(matches!(err, AppError::Unauthorized), "expected Unauthorized, got {err:?}");
     }
 
     #[tokio::test]
@@ -398,8 +400,8 @@ mod tests {
         let repo = MockAuthRepo::empty();
         let store = MockTokenStore::new();
         let config = test_jwt_config();
-        let result = login(&repo, &store, &config, "nobody", "password123").await;
-        assert!(result.is_err());
+        let err = login(&repo, &store, &config, "nobody", "password123").await.unwrap_err();
+        assert!(matches!(err, AppError::Unauthorized), "expected Unauthorized, got {err:?}");
     }
 
     // ─── get_me tests ──────────────────────────────
@@ -415,7 +417,8 @@ mod tests {
     #[tokio::test]
     async fn get_me_fails_for_nonexistent_user() {
         let repo = MockAuthRepo::empty();
-        assert!(get_me(&repo, 999).await.is_err());
+        let err = get_me(&repo, 999).await.unwrap_err();
+        assert!(matches!(err, AppError::NotFound(_)), "expected NotFound, got {err:?}");
     }
 
     // ─── change_password tests ─────────────────────
@@ -430,14 +433,14 @@ mod tests {
     #[tokio::test]
     async fn change_password_fails_wrong_old_password() {
         let repo = MockAuthRepo::with_customer(test_customer_row());
-        let result = change_password(&repo, 42, "wrongold", "newpass456").await;
-        assert!(result.is_err());
+        let err = change_password(&repo, 42, "wrongold", "newpass456").await.unwrap_err();
+        assert!(matches!(err, AppError::Unauthorized), "expected Unauthorized, got {err:?}");
     }
 
     #[tokio::test]
     async fn change_password_fails_nonexistent_user() {
         let repo = MockAuthRepo::empty();
-        let result = change_password(&repo, 999, "old", "new").await;
-        assert!(result.is_err());
+        let err = change_password(&repo, 999, "old", "new").await.unwrap_err();
+        assert!(matches!(err, AppError::NotFound(_)), "expected NotFound, got {err:?}");
     }
 }

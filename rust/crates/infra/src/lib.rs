@@ -1,3 +1,5 @@
+//! Infrastructure adapters: `PostgreSQL` repositories, Redis token store, S3 storage.
+
 pub mod activity_repo;
 pub mod admin_repo;
 pub mod customer_repo;

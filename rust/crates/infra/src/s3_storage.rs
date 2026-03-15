@@ -1,5 +1,6 @@
 use aws_config::Region;
 use aws_sdk_s3::config::Credentials;
+use aws_sdk_s3::presigning::PresigningConfig;
 use aws_sdk_s3::primitives::ByteStream;
 use aws_sdk_s3::Client;
 use tracing::info;
@@ -102,7 +103,6 @@ impl S3Storage {
             ));
         };
 
-        use aws_sdk_s3::presigning::PresigningConfig;
         let presigning = PresigningConfig::builder()
             .expires_in(std::time::Duration::from_secs(duration_secs))
             .build()

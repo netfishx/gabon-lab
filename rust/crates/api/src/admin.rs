@@ -12,8 +12,9 @@ use gabon_shared::error::AppError;
 use gabon_shared::pagination::Paginated;
 use gabon_shared::response::JsonData;
 use gabon_shared::traits::{
-    AdminCustomerRow, AdminRepo, AdminRow, AdminVideoDetailRow, AdminVideoRow,
-    ReportRepo, RevenueRow, TokenStore, VideoDailyRow, VideoSummaryRow,
+    AdminCustomerRow, AdminRepo, AdminRole, AdminRow, AdminStatus, AdminVideoDetailRow,
+    AdminVideoRow, ReportRepo, RevenueRow, TokenStore, VideoDailyRow, VideoStatus,
+    VideoSummaryRow,
 };
 
 use crate::AppState;
@@ -348,7 +349,7 @@ pub async fn admin_login(
         .await?
         .ok_or(AppError::Unauthorized)?;
 
-    if admin.status != 1 {
+    if admin.status != AdminStatus::Active as i16 {
         return Err(AppError::Forbidden);
     }
 
@@ -383,8 +384,7 @@ pub async fn review_video_action(
     status: i16,
     notes: Option<&str>,
 ) -> Result<(), AppError> {
-    // Only allow approve(4) or reject(5)
-    if status != 4 && status != 5 {
+    if !VideoStatus::is_review_outcome(status) {
         return Err(AppError::BadRequest("审核状态只能是通过(4)或驳回(5)".into()));
     }
 
@@ -398,10 +398,7 @@ pub async fn review_video_action(
 pub fn sign_admin_token(admin: &AdminRow, config: &JwtConfig) -> Result<String, AppError> {
     let now = Utc::now().timestamp();
     let jti = uuid::Uuid::new_v4().to_string();
-    let role_str = match admin.role {
-        1 => "superadmin",
-        _ => "admin",
-    };
+    let role_str = AdminRole::from_i16(admin.role).as_role_str();
     let claims = Claims {
         sub: admin.id,
         jti,
@@ -547,7 +544,9 @@ pub fn verify_admin_token(token: &str, jwt_config: &JwtConfig) -> Result<Claims,
     validation.set_audience(&["admin"]);
 
     let key = DecodingKey::from_secret(jwt_config.admin_secret.as_bytes());
-    let data = decode::<Claims>(token, &key, &validation).map_err(|_| AppError::Unauthorized)?;
+    let data = decode::<Claims>(token, &key, &validation)
+        .inspect_err(|e| tracing::debug!("admin JWT decode failed: {e}"))
+        .map_err(|_| AppError::Unauthorized)?;
 
     Ok(data.claims)
 }
@@ -556,7 +555,7 @@ pub fn verify_admin_token(token: &str, jwt_config: &JwtConfig) -> Result<Claims,
 mod tests {
     use gabon_shared::config::JwtConfig;
     use gabon_shared::error::AppError;
-    use gabon_shared::traits::{AdminCustomerRow, AdminRepo, AdminRole, AdminRow, AdminVideoDetailRow, AdminVideoRow};
+    use gabon_shared::traits::{AdminCustomerRow, AdminRepo, AdminRole, AdminRow, AdminStatus, AdminVideoDetailRow, AdminVideoRow};
 
     use crate::test_util::MockTokenStore;
 
@@ -579,7 +578,7 @@ mod tests {
             id: 1,
             username: "admin".into(),
             password_hash: bcrypt::hash("admin123", 4).unwrap(),
-            role: AdminRole::Admin as i16,
+            role: AdminRole::Superadmin as i16,
             full_name: Some("Admin User".into()),
             status: 1,
         }
@@ -687,8 +686,8 @@ mod tests {
         let repo = MockAdminRepo::with_admin(test_admin_row());
         let store = MockTokenStore::new();
         let config = test_jwt_config();
-        let result = admin_login(&repo, &store, &config, "admin", "wrong").await;
-        assert!(result.is_err());
+        let err = admin_login(&repo, &store, &config, "admin", "wrong").await.unwrap_err();
+        assert!(matches!(err, AppError::Unauthorized), "expected Unauthorized, got {err:?}");
     }
 
     #[tokio::test]
@@ -696,19 +695,19 @@ mod tests {
         let repo = MockAdminRepo::empty();
         let store = MockTokenStore::new();
         let config = test_jwt_config();
-        let result = admin_login(&repo, &store, &config, "nobody", "pass").await;
-        assert!(result.is_err());
+        let err = admin_login(&repo, &store, &config, "nobody", "pass").await.unwrap_err();
+        assert!(matches!(err, AppError::Unauthorized), "expected Unauthorized, got {err:?}");
     }
 
     #[tokio::test]
     async fn admin_login_fails_disabled_account() {
         let mut admin = test_admin_row();
-        admin.status = 0; // disabled
+        admin.status = AdminStatus::Disabled as i16;
         let repo = MockAdminRepo::with_admin(admin);
         let store = MockTokenStore::new();
         let config = test_jwt_config();
-        let result = admin_login(&repo, &store, &config, "admin", "admin123").await;
-        assert!(result.is_err());
+        let err = admin_login(&repo, &store, &config, "admin", "admin123").await.unwrap_err();
+        assert!(matches!(err, AppError::Forbidden), "expected Forbidden, got {err:?}");
     }
 
     // ─── admin JWT tests ───────────────────────────
@@ -756,15 +755,15 @@ mod tests {
     #[tokio::test]
     async fn review_fails_invalid_status() {
         let repo = MockAdminRepo::with_admin(test_admin_row());
-        let result = review_video_action(&repo, 1, 1, 2, None).await; // 2=TRANSCODING, invalid
-        assert!(result.is_err());
+        let err = review_video_action(&repo, 1, 1, 2, None).await.unwrap_err();
+        assert!(matches!(err, AppError::BadRequest(_)), "expected BadRequest, got {err:?}");
     }
 
     #[tokio::test]
     async fn review_fails_video_not_reviewable() {
         let repo = MockAdminRepo::with_admin(test_admin_row()).with_review_result(false);
-        let result = review_video_action(&repo, 1, 1, 4, None).await;
-        assert!(result.is_err());
+        let err = review_video_action(&repo, 1, 1, 4, None).await.unwrap_err();
+        assert!(matches!(err, AppError::BadRequest(_)), "expected BadRequest, got {err:?}");
     }
 
     // ─── admin_get_me tests ────────────────────────
@@ -782,7 +781,8 @@ mod tests {
     #[tokio::test]
     async fn admin_get_me_fails_nonexistent() {
         let repo = MockAdminRepo::empty();
-        assert!(admin_get_me(&repo, 999).await.is_err());
+        let err = admin_get_me(&repo, 999).await.unwrap_err();
+        assert!(matches!(err, AppError::NotFound(_)), "expected NotFound, got {err:?}");
     }
 
     // ─── admin video management tests ──────────────
@@ -796,7 +796,8 @@ mod tests {
     #[tokio::test]
     async fn admin_delete_video_fails_not_found() {
         let repo = MockAdminRepo::with_admin(test_admin_row()).with_review_result(false);
-        assert!(admin_delete_video(&repo, 999).await.is_err());
+        let err = admin_delete_video(&repo, 999).await.unwrap_err();
+        assert!(matches!(err, AppError::NotFound(_)), "expected NotFound, got {err:?}");
     }
 
     // ─── admin customer management tests ───────────
@@ -820,8 +821,8 @@ mod tests {
     #[tokio::test]
     async fn admin_delete_self_fails() {
         let repo = MockAdminRepo::with_admin(test_admin_row());
-        let result = admin_delete_user(&repo, 1, 1).await; // deleting self
-        assert!(result.is_err());
+        let err = admin_delete_user(&repo, 1, 1).await.unwrap_err();
+        assert!(matches!(err, AppError::BadRequest(_)), "expected BadRequest, got {err:?}");
     }
 
     #[tokio::test]
@@ -842,7 +843,8 @@ mod tests {
     #[tokio::test]
     async fn admin_get_by_id_fails_nonexistent() {
         let repo = MockAdminRepo::empty();
-        assert!(admin_get_by_id(&repo, 999).await.is_err());
+        let err = admin_get_by_id(&repo, 999).await.unwrap_err();
+        assert!(matches!(err, AppError::NotFound(_)), "expected NotFound, got {err:?}");
     }
 
     // ─── admin_update_user tests ──────────────────
@@ -856,7 +858,8 @@ mod tests {
     #[tokio::test]
     async fn admin_update_user_fails_nonexistent() {
         let repo = MockAdminRepo::empty();
-        assert!(admin_update_user(&repo, 999, 2, None, 1).await.is_err());
+        let err = admin_update_user(&repo, 999, 2, None, 1).await.unwrap_err();
+        assert!(matches!(err, AppError::NotFound(_)), "expected NotFound, got {err:?}");
     }
 
     // ─── admin_change_password tests ──────────────
@@ -870,7 +873,8 @@ mod tests {
     #[tokio::test]
     async fn admin_change_password_fails_nonexistent() {
         let repo = MockAdminRepo::empty();
-        assert!(admin_change_password(&repo, 999, "newpass").await.is_err());
+        let err = admin_change_password(&repo, 999, "newpass").await.unwrap_err();
+        assert!(matches!(err, AppError::NotFound(_)), "expected NotFound, got {err:?}");
     }
 
     // ─── admin_get_video_detail tests ─────────────
@@ -886,7 +890,8 @@ mod tests {
     #[tokio::test]
     async fn admin_get_video_detail_fails_nonexistent() {
         let repo = MockAdminRepo::with_admin(test_admin_row()).with_review_result(false);
-        assert!(admin_get_video_detail(&repo, 999).await.is_err());
+        let err = admin_get_video_detail(&repo, 999).await.unwrap_err();
+        assert!(matches!(err, AppError::NotFound(_)), "expected NotFound, got {err:?}");
     }
 
     // ─── admin refresh token tests ────────────────
@@ -912,6 +917,7 @@ mod tests {
         let repo = MockAdminRepo::empty();
         let store = MockTokenStore::new();
         let config = test_jwt_config();
-        assert!(admin_refresh_access_token(&repo, &store, &config, "bogus").await.is_err());
+        let err = admin_refresh_access_token(&repo, &store, &config, "bogus").await.unwrap_err();
+        assert!(matches!(err, AppError::Unauthorized), "expected Unauthorized, got {err:?}");
     }
 }

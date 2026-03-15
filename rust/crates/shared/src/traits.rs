@@ -1,7 +1,43 @@
 use crate::error::AppError;
 
+/// Video status lifecycle:
+/// `0=FAILED`, `1=PENDING_TRANSCODE`, `2=TRANSCODING`,
+/// `3=PENDING_REVIEW`, `4=APPROVED`, `5=REJECTED`
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, sqlx::Type)]
+#[repr(i16)]
+pub enum VideoStatus {
+    Failed = 0,
+    PendingTranscode = 1,
+    Transcoding = 2,
+    PendingReview = 3,
+    Approved = 4,
+    Rejected = 5,
+}
+
+impl VideoStatus {
+    /// Only `Approved` and `Rejected` are valid review outcomes.
+    pub fn is_review_outcome(status: i16) -> bool {
+        status == Self::Approved as i16 || status == Self::Rejected as i16
+    }
+}
+
+/// Play record type: total click vs valid (watched) click.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(i16)]
+pub enum PlayType {
+    TotalClick = 1,
+    ValidClick = 2,
+}
+
+/// Admin account status.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(i16)]
+pub enum AdminStatus {
+    Disabled = 0,
+    Active = 1,
+}
+
 /// Customer data operations for auth flows.
-#[allow(async_fn_in_trait)]
 pub trait AuthRepo {
     async fn find_by_username(&self, username: &str) -> Result<Option<CustomerRow>, AppError>;
     async fn find_by_id(&self, id: i64) -> Result<Option<CustomerRow>, AppError>;
@@ -35,7 +71,6 @@ pub struct CustomerRow {
 }
 
 /// Video data operations.
-#[allow(async_fn_in_trait)]
 pub trait VideoRepo {
     async fn list_approved(
         &self,
@@ -61,18 +96,20 @@ pub trait VideoRepo {
     /// Delete video owned by customer (any status).
     async fn delete_video(&self, video_id: i64, customer_id: i64) -> Result<bool, AppError>;
     async fn list_user_videos(&self, user_id: i64, page: i64, page_size: i64) -> Result<(Vec<VideoListRow>, i64), AppError>;
-    async fn create_video(
-        &self,
-        customer_id: i64,
-        title: Option<&str>,
-        description: Option<&str>,
-        file_name: &str,
-        file_size: i64,
-        file_url: &str,
-        mime_type: &str,
-        thumbnail_url: Option<&str>,
-        duration: Option<i32>,
-    ) -> Result<i64, AppError>;
+    async fn create_video(&self, params: &CreateVideoParams<'_>) -> Result<i64, AppError>;
+}
+
+/// Parameters for creating a new video record.
+pub struct CreateVideoParams<'a> {
+    pub customer_id: i64,
+    pub title: Option<&'a str>,
+    pub description: Option<&'a str>,
+    pub file_name: &'a str,
+    pub file_size: i64,
+    pub file_url: &'a str,
+    pub mime_type: &'a str,
+    pub thumbnail_url: Option<&'a str>,
+    pub duration: Option<i32>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
@@ -122,7 +159,6 @@ pub struct VideoDetailRow {
 }
 
 /// Social relationship operations.
-#[allow(async_fn_in_trait)]
 pub trait SocialRepo {
     async fn follow(&self, follower_id: i64, followed_id: i64) -> Result<bool, AppError>;
     async fn unfollow(&self, follower_id: i64, followed_id: i64) -> Result<bool, AppError>;
@@ -141,7 +177,6 @@ pub struct FollowRow {
 }
 
 /// Activity / task system operations.
-#[allow(async_fn_in_trait)]
 pub trait ActivityRepo {
     /// Check if user already signed in today. Returns true if already signed.
     async fn has_signed_in_today(&self, customer_id: i64, period_key: &str) -> Result<bool, AppError>;
@@ -157,6 +192,7 @@ pub trait ActivityRepo {
 
 /// Task status: `1=in_progress`, `2=completed`, `3=claimed`, `4=expired`
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(i16)]
 pub enum TaskStatus {
     InProgress = 1,
     Completed = 2,
@@ -177,7 +213,6 @@ pub struct TaskProgressRow {
 }
 
 /// Admin user data operations.
-#[allow(async_fn_in_trait)]
 pub trait AdminRepo {
     async fn find_admin_by_username(&self, username: &str) -> Result<Option<AdminRow>, AppError>;
     async fn find_admin_by_id(&self, id: i64) -> Result<Option<AdminRow>, AppError>;
@@ -208,11 +243,28 @@ pub trait AdminRepo {
     async fn get_video_detail(&self, video_id: i64) -> Result<Option<AdminVideoDetailRow>, AppError>;
 }
 
-/// Admin role: 1=admin, 2=normal
+/// Admin role: 1=superadmin (full access), 2=normal admin
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(i16)]
 pub enum AdminRole {
-    Admin = 1,
+    Superadmin = 1,
     Normal = 2,
+}
+
+impl AdminRole {
+    pub fn from_i16(v: i16) -> Self {
+        match v {
+            1 => Self::Superadmin,
+            _ => Self::Normal,
+        }
+    }
+
+    pub fn as_role_str(self) -> &'static str {
+        match self {
+            Self::Superadmin => "superadmin",
+            Self::Normal => "admin",
+        }
+    }
 }
 
 #[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
@@ -267,7 +319,6 @@ pub struct AdminCustomerRow {
 }
 
 /// Report queries.
-#[allow(async_fn_in_trait)]
 pub trait ReportRepo {
     async fn revenue_report(&self, page: i64, page_size: i64) -> Result<(Vec<RevenueRow>, i64), AppError>;
     async fn video_daily_report(&self, page: i64, page_size: i64) -> Result<(Vec<VideoDailyRow>, i64), AppError>;
@@ -301,7 +352,6 @@ pub struct VideoSummaryRow {
 }
 
 /// Token store for refresh tokens and access token blacklist (Redis).
-#[allow(async_fn_in_trait)]
 pub trait TokenStore {
     /// Store refresh token → `user_id` mapping with TTL.
     async fn store_refresh_token(&self, token: &str, user_id: i64, ttl_secs: u64) -> Result<(), AppError>;

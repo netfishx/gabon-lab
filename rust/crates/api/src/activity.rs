@@ -166,8 +166,8 @@ mod tests {
     #[tokio::test]
     async fn sign_in_fails_if_already_signed() {
         let repo = MockActivityRepo::already_signed();
-        let result = sign_in(&repo, 42).await;
-        assert!(result.is_err());
+        let err = sign_in(&repo, 42).await.unwrap_err();
+        assert!(matches!(err, AppError::Conflict(_)), "expected Conflict, got {err:?}");
     }
 
     // ─── claim_reward tests ────────────────────────
@@ -183,30 +183,30 @@ mod tests {
     #[tokio::test]
     async fn claim_fails_for_in_progress_task() {
         let repo = MockActivityRepo::with_task(TaskStatus::InProgress as i16, 1, 3);
-        let result = claim_reward(&repo, 1, 42).await;
-        assert!(result.is_err());
+        let err = claim_reward(&repo, 1, 42).await.unwrap_err();
+        assert!(matches!(err, AppError::BadRequest(_)), "expected BadRequest, got {err:?}");
     }
 
     #[tokio::test]
     async fn claim_fails_for_already_claimed_task() {
         let repo = MockActivityRepo::with_task(TaskStatus::Claimed as i16, 3, 3);
-        let result = claim_reward(&repo, 1, 42).await;
-        assert!(result.is_err());
+        let err = claim_reward(&repo, 1, 42).await.unwrap_err();
+        assert!(matches!(err, AppError::BadRequest(_)), "expected BadRequest, got {err:?}");
     }
 
     #[tokio::test]
     async fn claim_fails_for_nonexistent_task() {
         let repo = MockActivityRepo::not_signed(); // task_progress = None
-        let result = claim_reward(&repo, 999, 42).await;
-        assert!(result.is_err());
+        let err = claim_reward(&repo, 999, 42).await.unwrap_err();
+        assert!(matches!(err, AppError::NotFound(_)), "expected NotFound, got {err:?}");
     }
 
     #[tokio::test]
     async fn claim_fails_if_wrong_customer() {
         let repo = MockActivityRepo::with_task(TaskStatus::Completed as i16, 3, 3);
         // task belongs to customer 42, but requester is 99
-        let result = claim_reward(&repo, 1, 99).await;
-        assert!(result.is_err());
+        let err = claim_reward(&repo, 1, 99).await.unwrap_err();
+        assert!(matches!(err, AppError::Forbidden), "expected Forbidden, got {err:?}");
     }
 
     // ─── list_tasks tests ─────────────────────────

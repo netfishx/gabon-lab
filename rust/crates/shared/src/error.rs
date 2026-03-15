@@ -45,7 +45,12 @@ impl AppError {
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let status = self.status_code();
-        let body = JsonData::<()>::error(status.as_u16().into(), self.to_string());
+        // Database/Internal may contain SQL details or stack traces — never leak to client
+        let message = match &self {
+            Self::Database(_) | Self::Internal(_) => "内部服务错误".to_string(),
+            other => other.to_string(),
+        };
+        let body = JsonData::<()>::error(status.as_u16().into(), message);
         (status, axum::Json(body)).into_response()
     }
 }
@@ -89,5 +94,19 @@ mod tests {
     fn internal_maps_to_500() {
         let err = AppError::Internal("boom".into());
         assert_eq!(err.status_code(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[test]
+    fn database_error_does_not_leak_details() {
+        let err = AppError::Database(sqlx::Error::RowNotFound);
+        let resp = err.into_response();
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[test]
+    fn internal_error_does_not_leak_details() {
+        let err = AppError::Internal("sensitive sql info".into());
+        let resp = err.into_response();
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 }

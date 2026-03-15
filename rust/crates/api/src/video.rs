@@ -6,7 +6,7 @@ use gabon_infra::video_repo::PgVideoRepo;
 use gabon_shared::error::AppError;
 use gabon_shared::pagination::Paginated;
 use gabon_shared::response::JsonData;
-use gabon_shared::traits::{MyVideoRow, VideoDetailRow, VideoListRow, VideoRepo};
+use gabon_shared::traits::{CreateVideoParams, MyVideoRow, PlayType, VideoDetailRow, VideoListRow, VideoRepo};
 
 use crate::AppState;
 use crate::middleware::{AuthCustomer, OptionalAuth};
@@ -90,7 +90,7 @@ pub async fn play_click(
     OptionalAuth(claims): OptionalAuth,
 ) -> Result<JsonData<i64>, AppError> {
     let repo = PgVideoRepo { pool: &state.db };
-    let id = repo.record_play(path.video_id, claims.map(|c| c.sub), 1).await?;
+    let id = repo.record_play(path.video_id, claims.map(|c| c.sub), PlayType::TotalClick as i16).await?;
     Ok(JsonData::ok(id))
 }
 
@@ -100,7 +100,7 @@ pub async fn play_valid(
     OptionalAuth(claims): OptionalAuth,
 ) -> Result<JsonData<i64>, AppError> {
     let repo = PgVideoRepo { pool: &state.db };
-    let id = repo.record_play(path.video_id, claims.map(|c| c.sub), 2).await?;
+    let id = repo.record_play(path.video_id, claims.map(|c| c.sub), PlayType::ValidClick as i16).await?;
     Ok(JsonData::ok(id))
 }
 
@@ -227,23 +227,21 @@ pub async fn confirm_upload(
 ) -> Result<JsonData<ConfirmUploadResponse>, AppError> {
     let file_url = state.s3.build_public_url(&state.config.s3.bucket_videos, &body.s3_key);
     let repo = PgVideoRepo { pool: &state.db };
+    let params = CreateVideoParams {
+        customer_id: claims.sub,
+        title: body.title.as_deref(),
+        description: body.description.as_deref(),
+        file_name: &body.file_name,
+        file_size: body.file_size,
+        file_url: &file_url,
+        mime_type: &body.mime_type,
+        thumbnail_url: None,
+        duration: body.duration,
+    };
     let video_id = repo
-        .create_video(
-            claims.sub,
-            body.title.as_deref(),
-            body.description.as_deref(),
-            &body.file_name,
-            body.file_size,
-            &file_url,
-            &body.mime_type,
-            None,
-            body.duration,
-        )
+        .create_video(&params)
         .await
-        .map_err(|e| {
-            tracing::error!("Failed to create video record: {e}");
-            e
-        })?;
+        .inspect_err(|e| tracing::error!("Failed to create video record: {e}"))?;
 
     Ok(JsonData::ok(ConfirmUploadResponse { video_id }))
 }
@@ -252,7 +250,7 @@ pub async fn confirm_upload(
 mod tests {
     use std::sync::Mutex;
 
-    use gabon_shared::traits::{MyVideoRow, VideoListRow, VideoRepo};
+    use gabon_shared::traits::{CreateVideoParams, MyVideoRow, VideoListRow, VideoRepo};
 
     use super::*;
 
@@ -322,7 +320,7 @@ mod tests {
             Ok((vec![], 0))
         }
 
-        async fn create_video(&self, _customer_id: i64, _title: Option<&str>, _description: Option<&str>, _file_name: &str, _file_size: i64, _file_url: &str, _mime_type: &str, _thumbnail_url: Option<&str>, _duration: Option<i32>) -> Result<i64, AppError> {
+        async fn create_video(&self, _params: &CreateVideoParams<'_>) -> Result<i64, AppError> {
             Ok(1)
         }
     }
