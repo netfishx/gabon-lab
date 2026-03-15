@@ -12,7 +12,7 @@ pub struct Config {
     pub rust_log: String,
 }
 
-/// S3-compatible storage configuration (Garage / MinIO / AWS).
+/// S3-compatible storage configuration (Garage / `MinIO` / AWS).
 /// All fields optional — empty endpoint activates stub mode.
 #[derive(Debug, Clone)]
 pub struct S3Config {
@@ -51,10 +51,10 @@ impl Config {
             jwt: JwtConfig {
                 customer_secret: env_required("JWT_CUSTOMER_SECRET"),
                 customer_access_ttl: env_or("JWT_CUSTOMER_ACCESS_TTL", 900),
-                customer_refresh_ttl: env_or("JWT_CUSTOMER_REFRESH_TTL", 604800),
+                customer_refresh_ttl: env_or("JWT_CUSTOMER_REFRESH_TTL", 604_800),
                 admin_secret: env_required("JWT_ADMIN_SECRET"),
                 admin_access_ttl: env_or("JWT_ADMIN_ACCESS_TTL", 900),
-                admin_refresh_ttl: env_or("JWT_ADMIN_REFRESH_TTL", 604800),
+                admin_refresh_ttl: env_or("JWT_ADMIN_REFRESH_TTL", 604_800),
                 current_kid: env_or_string("JWT_CURRENT_KID", "key-2026-02"),
             },
             s3: S3Config {

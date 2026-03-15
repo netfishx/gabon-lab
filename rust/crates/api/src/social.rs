@@ -32,6 +32,7 @@ pub async fn unfollow_handler(
 
 // ─── Service ───────────────────────────────────
 
+#[allow(clippy::similar_names)]
 fn validate_follow(follower_id: i64, followed_id: i64) -> Result<(), AppError> {
     if follower_id == followed_id {
         return Err(AppError::BadRequest("不能关注自己".into()));
@@ -39,6 +40,7 @@ fn validate_follow(follower_id: i64, followed_id: i64) -> Result<(), AppError> {
     Ok(())
 }
 
+#[allow(clippy::similar_names)]
 pub async fn follow_user(
     repo: &impl SocialRepo,
     follower_id: i64,
@@ -53,6 +55,7 @@ pub async fn follow_user(
     Ok(())
 }
 
+#[allow(clippy::similar_names)]
 pub async fn unfollow_user(
     repo: &impl SocialRepo,
     follower_id: i64,

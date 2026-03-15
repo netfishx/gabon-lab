@@ -150,12 +150,14 @@ pub(crate) fn sign_access_token(customer: &CustomerRow, config: &JwtConfig) -> R
         iss: "gabon-service".into(),
         aud: "customer".into(),
         iat: now,
-        exp: now + config.customer_access_ttl as i64,
+        exp: now + config.customer_access_ttl.cast_signed(),
         kid: config.current_kid.clone(),
     };
 
-    let mut header = Header::default();
-    header.kid = Some(config.current_kid.clone());
+    let header = Header {
+        kid: Some(config.current_kid.clone()),
+        ..Header::default()
+    };
 
     encode(&header, &claims, &EncodingKey::from_secret(config.customer_secret.as_bytes()))
         .map_err(|e| AppError::Internal(e.to_string()))

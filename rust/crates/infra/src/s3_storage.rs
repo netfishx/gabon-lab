@@ -6,7 +6,7 @@ use tracing::info;
 
 use gabon_shared::config::S3Config;
 
-/// S3-compatible object storage client (Garage / MinIO / AWS).
+/// S3-compatible object storage client (Garage / `MinIO` / AWS).
 /// Falls back to stub URLs when endpoint is unconfigured.
 #[derive(Clone)]
 pub struct S3Storage {
@@ -15,7 +15,7 @@ pub struct S3Storage {
 }
 
 impl S3Storage {
-    /// Create a new S3Storage from config.
+    /// Create a new `S3Storage` from config.
     /// When `config.endpoint` is empty, all operations return stub URLs.
     pub fn new(config: &S3Config) -> Self {
         if !config.is_configured() {
@@ -54,6 +54,10 @@ impl S3Storage {
 
     /// Upload an object to the given bucket.
     /// Returns the public URL of the uploaded object.
+    ///
+    /// # Errors
+    ///
+    /// Returns `S3Error::Upload` if the S3 PUT request fails.
     pub async fn upload(
         &self,
         bucket: &str,
@@ -81,6 +85,10 @@ impl S3Storage {
     }
 
     /// Delete an object from the given bucket.
+    ///
+    /// # Errors
+    ///
+    /// Returns `S3Error::Delete` if the S3 DELETE request fails.
     pub async fn delete(&self, bucket: &str, key: &str) -> Result<(), S3Error> {
         let Some(client) = &self.client else {
             return Ok(());

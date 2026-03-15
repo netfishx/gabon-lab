@@ -212,7 +212,6 @@ pub async fn upload(
 
 fn mime_to_ext(content_type: &str) -> &str {
     match content_type {
-        "video/mp4" => "mp4",
         "video/webm" => "webm",
         "video/quicktime" => "mov",
         _ => "mp4",
@@ -242,7 +241,7 @@ mod tests {
     }
 
     impl VideoRepo for MockVideoRepo {
-        async fn list_approved(&self, _page: i64, page_size: i64, _keyword: Option<&str>) -> Result<(Vec<VideoListRow>, i64), AppError> {
+        async fn list_approved(&self, _page: i64, _page_size: i64, _keyword: Option<&str>) -> Result<(Vec<VideoListRow>, i64), AppError> {
             let items = vec![VideoListRow {
                 id: 1, customer_id: 1, title: Some("test".into()),
                 thumbnail_url: None, duration: Some(60), like_count: 10, total_clicks: 100,

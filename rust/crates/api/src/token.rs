@@ -43,7 +43,7 @@ pub async fn logout_handler(
     AuthCustomer(claims): AuthCustomer,
 ) -> Result<JsonData<()>, AppError> {
     let store = RedisTokenStore { pool: &state.redis };
-    let remaining = (claims.exp - chrono::Utc::now().timestamp()).max(0) as u64;
+    let remaining = (claims.exp - chrono::Utc::now().timestamp()).max(0).cast_unsigned();
     // We need the raw token — extract from header
     // For simplicity, use claims.exp as remaining TTL indicator
     logout(&store, &format!("sub:{}", claims.sub), remaining).await?;

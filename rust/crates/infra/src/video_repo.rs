@@ -25,10 +25,10 @@ impl gabon_shared::traits::VideoRepo for PgVideoRepo<'_> {
             .fetch_one(self.pool)
             .await?;
 
-            let items = sqlx::query_as::<_, PgVideoListRow>(
-                r#"SELECT id, customer_id, title, thumbnail_url, duration, like_count, total_clicks
+            let items = sqlx::query_as::<_, VideoListRow>(
+                r"SELECT id, customer_id, title, thumbnail_url, duration, like_count, total_clicks
                    FROM videos WHERE status = 4 AND deleted_at IS NULL AND title ILIKE $1
-                   ORDER BY id DESC LIMIT $2 OFFSET $3"#,
+                   ORDER BY id DESC LIMIT $2 OFFSET $3",
             )
             .bind(&pattern)
             .bind(page_size)
@@ -44,10 +44,10 @@ impl gabon_shared::traits::VideoRepo for PgVideoRepo<'_> {
             .fetch_one(self.pool)
             .await?;
 
-            let items = sqlx::query_as::<_, PgVideoListRow>(
-                r#"SELECT id, customer_id, title, thumbnail_url, duration, like_count, total_clicks
+            let items = sqlx::query_as::<_, VideoListRow>(
+                r"SELECT id, customer_id, title, thumbnail_url, duration, like_count, total_clicks
                    FROM videos WHERE status = 4 AND deleted_at IS NULL
-                   ORDER BY id DESC LIMIT $1 OFFSET $2"#,
+                   ORDER BY id DESC LIMIT $1 OFFSET $2",
             )
             .bind(page_size)
             .bind(offset)
@@ -57,7 +57,7 @@ impl gabon_shared::traits::VideoRepo for PgVideoRepo<'_> {
             (total, items)
         };
 
-        Ok((items.into_iter().map(Into::into).collect(), total))
+        Ok((items, total))
     }
 
     async fn list_featured(
@@ -73,41 +73,41 @@ impl gabon_shared::traits::VideoRepo for PgVideoRepo<'_> {
         .fetch_one(self.pool)
         .await?;
 
-        let items = sqlx::query_as::<_, PgVideoListRow>(
-            r#"SELECT id, customer_id, title, thumbnail_url, duration, like_count, total_clicks
+        let items = sqlx::query_as::<_, VideoListRow>(
+            r"SELECT id, customer_id, title, thumbnail_url, duration, like_count, total_clicks
                FROM videos WHERE status = 4 AND deleted_at IS NULL
-               ORDER BY like_count DESC, id DESC LIMIT $1 OFFSET $2"#,
+               ORDER BY like_count DESC, id DESC LIMIT $1 OFFSET $2",
         )
         .bind(page_size)
         .bind(offset)
         .fetch_all(self.pool)
         .await?;
 
-        Ok((items.into_iter().map(Into::into).collect(), total))
+        Ok((items, total))
     }
 
     async fn list_my(&self, customer_id: i64) -> Result<Vec<MyVideoRow>, AppError> {
-        let items = sqlx::query_as::<_, PgMyVideoRow>(
-            r#"SELECT id, title, thumbnail_url, file_url, duration, status,
+        let items = sqlx::query_as::<_, MyVideoRow>(
+            r"SELECT id, title, thumbnail_url, file_url, duration, status,
                       like_count, total_clicks, valid_clicks
                FROM videos WHERE customer_id = $1 AND deleted_at IS NULL
-               ORDER BY id DESC"#,
+               ORDER BY id DESC",
         )
         .bind(customer_id)
         .fetch_all(self.pool)
         .await?;
 
-        Ok(items.into_iter().map(Into::into).collect())
+        Ok(items)
     }
 
     async fn like(&self, video_id: i64, customer_id: i64) -> Result<bool, AppError> {
         let result = sqlx::query(
-            r#"WITH inserted AS (
+            r"WITH inserted AS (
                    INSERT INTO video_likes (video_id, customer_id) VALUES ($1, $2)
                    ON CONFLICT DO NOTHING RETURNING video_id
                )
                UPDATE videos SET like_count = like_count + 1, updated_at = NOW()
-               WHERE id = (SELECT video_id FROM inserted)"#,
+               WHERE id = (SELECT video_id FROM inserted)",
         )
         .bind(video_id)
         .bind(customer_id)
@@ -118,12 +118,12 @@ impl gabon_shared::traits::VideoRepo for PgVideoRepo<'_> {
 
     async fn unlike(&self, video_id: i64, customer_id: i64) -> Result<bool, AppError> {
         let result = sqlx::query(
-            r#"WITH deleted AS (
+            r"WITH deleted AS (
                    DELETE FROM video_likes WHERE video_id = $1 AND customer_id = $2
                    RETURNING video_id
                )
                UPDATE videos SET like_count = like_count - 1, updated_at = NOW()
-               WHERE id = (SELECT video_id FROM deleted)"#,
+               WHERE id = (SELECT video_id FROM deleted)",
         )
         .bind(video_id)
         .bind(customer_id)
@@ -147,8 +147,8 @@ impl gabon_shared::traits::VideoRepo for PgVideoRepo<'_> {
         .await?;
 
         let id: i64 = sqlx::query_scalar(
-            r#"INSERT INTO video_play_records (video_id, customer_id, play_type, ip_address)
-               VALUES ($1, $2, $3, NULL) RETURNING id"#,
+            r"INSERT INTO video_play_records (video_id, customer_id, play_type, ip_address)
+               VALUES ($1, $2, $3, NULL) RETURNING id",
         )
         .bind(video_id)
         .bind(customer_id)
@@ -159,13 +159,13 @@ impl gabon_shared::traits::VideoRepo for PgVideoRepo<'_> {
     }
 
     async fn get_detail(&self, video_id: i64, viewer_id: Option<i64>) -> Result<Option<VideoDetailRow>, AppError> {
-        let row = sqlx::query_as::<_, PgVideoDetailRow>(
-            r#"SELECT v.id, v.title, v.description, v.file_url, v.thumbnail_url,
+        let row = sqlx::query_as::<_, PgVideoDetailPartial>(
+            r"SELECT v.id, v.title, v.description, v.file_url, v.thumbnail_url,
                       v.duration, v.like_count, v.total_clicks,
                       c.id AS author_id, c.name AS author_name,
                       c.avatar_url AS author_avatar_url, c.is_vip AS author_is_vip
                FROM videos v JOIN customers c ON v.customer_id = c.id
-               WHERE v.id = $1 AND v.status = 4 AND v.deleted_at IS NULL"#,
+               WHERE v.id = $1 AND v.status = 4 AND v.deleted_at IS NULL",
         )
         .bind(video_id)
         .fetch_optional(self.pool)
@@ -205,8 +205,8 @@ impl gabon_shared::traits::VideoRepo for PgVideoRepo<'_> {
 
     async fn delete_video(&self, video_id: i64, customer_id: i64) -> Result<bool, AppError> {
         let result = sqlx::query(
-            r#"UPDATE videos SET deleted_at = NOW(), updated_at = NOW()
-               WHERE id = $1 AND customer_id = $2 AND status = 3 AND deleted_at IS NULL"#,
+            r"UPDATE videos SET deleted_at = NOW(), updated_at = NOW()
+               WHERE id = $1 AND customer_id = $2 AND status = 3 AND deleted_at IS NULL",
         )
         .bind(video_id)
         .bind(customer_id)
@@ -216,20 +216,22 @@ impl gabon_shared::traits::VideoRepo for PgVideoRepo<'_> {
     }
 
     async fn list_user_videos(&self, user_id: i64) -> Result<Vec<VideoListRow>, AppError> {
-        let items = sqlx::query_as::<_, PgVideoListRow>(
-            r#"SELECT id, customer_id, title, thumbnail_url, duration, like_count, total_clicks
+        let items = sqlx::query_as::<_, VideoListRow>(
+            r"SELECT id, customer_id, title, thumbnail_url, duration, like_count, total_clicks
                FROM videos WHERE customer_id = $1 AND status = 4 AND deleted_at IS NULL
-               ORDER BY id DESC"#,
+               ORDER BY id DESC",
         )
         .bind(user_id)
         .fetch_all(self.pool)
         .await?;
-        Ok(items.into_iter().map(Into::into).collect())
+        Ok(items)
     }
 }
 
+/// Partial row for video detail query (without viewer interaction fields
+/// that require separate queries).
 #[derive(sqlx::FromRow)]
-struct PgVideoDetailRow {
+struct PgVideoDetailPartial {
     id: i64,
     title: Option<String>,
     description: Option<String>,
@@ -242,60 +244,4 @@ struct PgVideoDetailRow {
     author_name: Option<String>,
     author_avatar_url: Option<String>,
     author_is_vip: bool,
-}
-
-// ─── Internal PG row types ─────────────────────
-
-#[derive(sqlx::FromRow)]
-struct PgVideoListRow {
-    id: i64,
-    customer_id: i64,
-    title: Option<String>,
-    thumbnail_url: Option<String>,
-    duration: Option<i32>,
-    like_count: i64,
-    total_clicks: i64,
-}
-
-impl From<PgVideoListRow> for VideoListRow {
-    fn from(r: PgVideoListRow) -> Self {
-        Self {
-            id: r.id,
-            customer_id: r.customer_id,
-            title: r.title,
-            thumbnail_url: r.thumbnail_url,
-            duration: r.duration,
-            like_count: r.like_count,
-            total_clicks: r.total_clicks,
-        }
-    }
-}
-
-#[derive(sqlx::FromRow)]
-struct PgMyVideoRow {
-    id: i64,
-    title: Option<String>,
-    thumbnail_url: Option<String>,
-    file_url: String,
-    duration: Option<i32>,
-    status: i16,
-    like_count: i64,
-    total_clicks: i64,
-    valid_clicks: i64,
-}
-
-impl From<PgMyVideoRow> for MyVideoRow {
-    fn from(r: PgMyVideoRow) -> Self {
-        Self {
-            id: r.id,
-            title: r.title,
-            thumbnail_url: r.thumbnail_url,
-            file_url: r.file_url,
-            duration: r.duration,
-            status: r.status,
-            like_count: r.like_count,
-            total_clicks: r.total_clicks,
-            valid_clicks: r.valid_clicks,
-        }
-    }
 }

@@ -21,7 +21,7 @@ pub struct Customer {
     pub deleted_at: Option<DateTime<Utc>>,
 }
 
-/// Public-facing customer profile (no password_hash).
+/// Public-facing customer profile (no `password_hash`).
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CustomerProfile {
@@ -53,8 +53,8 @@ impl From<Customer> for CustomerProfile {
 }
 
 /// Video status lifecycle:
-/// 0=FAILED, 1=PENDING_TRANSCODE, 2=TRANSCODING,
-/// 3=PENDING_REVIEW, 4=APPROVED, 5=REJECTED
+/// `0=FAILED`, `1=PENDING_TRANSCODE`, `2=TRANSCODING`,
+/// `3=PENDING_REVIEW`, `4=APPROVED`, `5=REJECTED`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, sqlx::Type)]
 #[repr(i16)]
 pub enum VideoStatus {

@@ -39,15 +39,6 @@ pub async fn get_followers(
     Ok(JsonData::ok(list))
 }
 
-pub async fn get_user_follow_list(
-    State(state): State<AppState>,
-    Path(user_id): Path<i64>,
-) -> Result<JsonData<Vec<FollowRow>>, AppError> {
-    let repo = PgSocialRepo { pool: &state.db };
-    let list = repo.get_following(user_id).await?;
-    Ok(JsonData::ok(list))
-}
-
 // ─── /api/users/me/* handlers ─────────────────
 
 pub async fn get_my_profile(

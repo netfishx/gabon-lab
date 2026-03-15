@@ -1,16 +1,20 @@
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::Json;
 use chrono::Utc;
 use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
 
-use gabon_shared::config::JwtConfig;
-use gabon_shared::error::AppError;
-use gabon_shared::traits::{AdminRepo, AdminRow, AdminVideoDetailRow, TokenStore};
-
-use gabon_shared::response::JsonData;
 use gabon_infra::admin_repo::PgAdminRepo;
 use gabon_infra::redis_store::RedisTokenStore;
+use gabon_infra::report_repo::PgReportRepo;
+use gabon_shared::config::JwtConfig;
+use gabon_shared::error::AppError;
+use gabon_shared::pagination::Paginated;
+use gabon_shared::response::JsonData;
+use gabon_shared::traits::{
+    AdminCustomerRow, AdminRepo, AdminRow, AdminVideoDetailRow, AdminVideoRow,
+    ReportRepo, RevenueRow, TokenStore, VideoDailyRow, VideoSummaryRow,
+};
 
 use crate::AppState;
 use crate::service::Claims;
@@ -44,13 +48,13 @@ pub async fn me_handler(
 pub async fn list_videos_handler(
     State(state): State<AppState>,
     AuthAdmin(_claims): AuthAdmin,
-    axum::extract::Query(params): axum::extract::Query<AdminListParams>,
-) -> Result<JsonData<gabon_shared::pagination::Paginated<gabon_shared::traits::AdminVideoRow>>, AppError> {
+    Query(params): Query<AdminListParams>,
+) -> Result<JsonData<Paginated<AdminVideoRow>>, AppError> {
     let repo = PgAdminRepo { pool: &state.db };
     let page = params.page.unwrap_or(1);
     let size = params.page_size.unwrap_or(20);
     let (items, total) = repo.list_videos(page, size, params.status).await?;
-    Ok(JsonData::ok(gabon_shared::pagination::Paginated::new(items, page, size, total)))
+    Ok(JsonData::ok(Paginated::new(items, page, size, total)))
 }
 
 pub async fn delete_video_handler(
@@ -66,13 +70,13 @@ pub async fn delete_video_handler(
 pub async fn list_customers_handler(
     State(state): State<AppState>,
     AuthAdmin(_claims): AuthAdmin,
-    axum::extract::Query(params): axum::extract::Query<AdminListParams>,
-) -> Result<JsonData<gabon_shared::pagination::Paginated<gabon_shared::traits::AdminCustomerRow>>, AppError> {
+    Query(params): Query<AdminListParams>,
+) -> Result<JsonData<Paginated<AdminCustomerRow>>, AppError> {
     let repo = PgAdminRepo { pool: &state.db };
     let page = params.page.unwrap_or(1);
     let size = params.page_size.unwrap_or(20);
     let (items, total) = repo.list_customers(page, size, params.name.as_deref()).await?;
-    Ok(JsonData::ok(gabon_shared::pagination::Paginated::new(items, page, size, total)))
+    Ok(JsonData::ok(Paginated::new(items, page, size, total)))
 }
 
 pub async fn change_customer_password_handler(
@@ -89,20 +93,20 @@ pub async fn change_customer_password_handler(
 pub async fn list_admins_handler(
     State(state): State<AppState>,
     AuthAdmin(_claims): AuthAdmin,
-    axum::extract::Query(params): axum::extract::Query<AdminListParams>,
-) -> Result<JsonData<gabon_shared::pagination::Paginated<gabon_shared::traits::AdminRow>>, AppError> {
+    Query(params): Query<AdminListParams>,
+) -> Result<JsonData<Paginated<AdminRow>>, AppError> {
     let repo = PgAdminRepo { pool: &state.db };
     let page = params.page.unwrap_or(1);
     let size = params.page_size.unwrap_or(20);
     let (items, total) = repo.list_admins(page, size).await?;
-    Ok(JsonData::ok(gabon_shared::pagination::Paginated::new(items, page, size, total)))
+    Ok(JsonData::ok(Paginated::new(items, page, size, total)))
 }
 
 pub async fn create_admin_handler(
     State(state): State<AppState>,
     AuthAdmin(_claims): AuthAdmin,
     Json(body): Json<CreateAdminRequest>,
-) -> Result<JsonData<gabon_shared::traits::AdminRow>, AppError> {
+) -> Result<JsonData<AdminRow>, AppError> {
     let repo = PgAdminRepo { pool: &state.db };
     let admin = admin_create_user(&repo, &body.username, &body.password, body.role, body.full_name.as_deref()).await?;
     Ok(JsonData::ok(admin))
@@ -111,33 +115,33 @@ pub async fn create_admin_handler(
 pub async fn revenue_report_handler(
     State(state): State<AppState>,
     AuthAdmin(_claims): AuthAdmin,
-    axum::extract::Query(params): axum::extract::Query<AdminListParams>,
-) -> Result<JsonData<gabon_shared::pagination::Paginated<gabon_shared::traits::RevenueRow>>, AppError> {
-    let repo = gabon_infra::report_repo::PgReportRepo { pool: &state.db };
+    Query(params): Query<AdminListParams>,
+) -> Result<JsonData<Paginated<RevenueRow>>, AppError> {
+    let repo = PgReportRepo { pool: &state.db };
     let page = params.page.unwrap_or(1);
     let size = params.page_size.unwrap_or(20);
-    let (items, total) = gabon_shared::traits::ReportRepo::revenue_report(&repo, page, size).await?;
-    Ok(JsonData::ok(gabon_shared::pagination::Paginated::new(items, page, size, total)))
+    let (items, total) = repo.revenue_report(page, size).await?;
+    Ok(JsonData::ok(Paginated::new(items, page, size, total)))
 }
 
 pub async fn video_daily_report_handler(
     State(state): State<AppState>,
     AuthAdmin(_claims): AuthAdmin,
-    axum::extract::Query(params): axum::extract::Query<AdminListParams>,
-) -> Result<JsonData<gabon_shared::pagination::Paginated<gabon_shared::traits::VideoDailyRow>>, AppError> {
-    let repo = gabon_infra::report_repo::PgReportRepo { pool: &state.db };
+    Query(params): Query<AdminListParams>,
+) -> Result<JsonData<Paginated<VideoDailyRow>>, AppError> {
+    let repo = PgReportRepo { pool: &state.db };
     let page = params.page.unwrap_or(1);
     let size = params.page_size.unwrap_or(20);
-    let (items, total) = gabon_shared::traits::ReportRepo::video_daily_report(&repo, page, size).await?;
-    Ok(JsonData::ok(gabon_shared::pagination::Paginated::new(items, page, size, total)))
+    let (items, total) = repo.video_daily_report(page, size).await?;
+    Ok(JsonData::ok(Paginated::new(items, page, size, total)))
 }
 
 pub async fn video_summary_handler(
     State(state): State<AppState>,
     AuthAdmin(_claims): AuthAdmin,
-) -> Result<JsonData<gabon_shared::traits::VideoSummaryRow>, AppError> {
-    let repo = gabon_infra::report_repo::PgReportRepo { pool: &state.db };
-    let summary = gabon_shared::traits::ReportRepo::video_summary(&repo).await?;
+) -> Result<JsonData<VideoSummaryRow>, AppError> {
+    let repo = PgReportRepo { pool: &state.db };
+    let summary = repo.video_summary().await?;
     Ok(JsonData::ok(summary))
 }
 
@@ -171,7 +175,7 @@ pub async fn admin_logout_handler(
     AuthAdmin(claims): AuthAdmin,
 ) -> Result<JsonData<()>, AppError> {
     let store = RedisTokenStore { pool: &state.redis };
-    let remaining = (claims.exp - chrono::Utc::now().timestamp()).max(0) as u64;
+    let remaining = (claims.exp - chrono::Utc::now().timestamp()).max(0).cast_unsigned();
     store
         .blacklist_access_token(&format!("admin:sub:{}", claims.sub), remaining)
         .await?;
@@ -374,12 +378,14 @@ pub fn sign_admin_token(admin: &AdminRow, config: &JwtConfig) -> Result<String, 
         iss: "gabon-admin".into(),
         aud: "admin".into(),
         iat: now,
-        exp: now + config.admin_access_ttl as i64,
+        exp: now + config.admin_access_ttl.cast_signed(),
         kid: config.current_kid.clone(),
     };
 
-    let mut header = Header::default();
-    header.kid = Some(config.current_kid.clone());
+    let header = Header {
+        kid: Some(config.current_kid.clone()),
+        ..Header::default()
+    };
 
     encode(&header, &claims, &EncodingKey::from_secret(config.admin_secret.as_bytes()))
         .map_err(|e| AppError::Internal(e.to_string()))

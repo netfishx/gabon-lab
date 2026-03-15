@@ -18,8 +18,8 @@ pub trait AuthRepo {
     ) -> Result<CustomerRow, AppError>;
 }
 
-/// Minimal row type returned by AuthRepo — decoupled from domain entity.
-#[derive(Debug, Clone)]
+/// Minimal row type returned by `AuthRepo` — decoupled from domain entity.
+#[derive(Debug, Clone, sqlx::FromRow)]
 pub struct CustomerRow {
     pub id: i64,
     pub username: String,
@@ -57,12 +57,12 @@ pub trait VideoRepo {
         play_type: i16,
     ) -> Result<i64, AppError>;
     async fn get_detail(&self, video_id: i64, viewer_id: Option<i64>) -> Result<Option<VideoDetailRow>, AppError>;
-    /// Delete video. Only PENDING_REVIEW(3) videos owned by customer can be deleted.
+    /// Delete video. Only `PENDING_REVIEW(3)` videos owned by customer can be deleted.
     async fn delete_video(&self, video_id: i64, customer_id: i64) -> Result<bool, AppError>;
     async fn list_user_videos(&self, user_id: i64) -> Result<Vec<VideoListRow>, AppError>;
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct VideoListRow {
     pub id: i64,
@@ -74,7 +74,7 @@ pub struct VideoListRow {
     pub total_clicks: i64,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct MyVideoRow {
     pub id: i64,
@@ -118,7 +118,7 @@ pub trait SocialRepo {
 }
 
 /// Follow relationship row with user info.
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct FollowRow {
     pub id: i64,
@@ -142,7 +142,7 @@ pub trait ActivityRepo {
     async fn claim_task(&self, progress_id: i64, customer_id: i64, diamonds: i64) -> Result<(), AppError>;
 }
 
-/// Task status: 1=in_progress, 2=completed, 3=claimed, 4=expired
+/// Task status: `1=in_progress`, `2=completed`, `3=claimed`, `4=expired`
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TaskStatus {
     InProgress = 1,
@@ -151,7 +151,7 @@ pub enum TaskStatus {
     Expired = 4,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskProgressRow {
     pub id: i64,
@@ -170,7 +170,7 @@ pub trait AdminRepo {
     async fn find_admin_by_id(&self, id: i64) -> Result<Option<AdminRow>, AppError>;
     async fn update_admin_last_login(&self, id: i64) -> Result<(), AppError>;
     /// Review a video: set status to approved(4) or rejected(5).
-    /// Only videos with status=PENDING_REVIEW(3) can be reviewed.
+    /// Only videos with `status=PENDING_REVIEW(3)` can be reviewed.
     /// Returns true if updated, false if video not in reviewable state.
     async fn review_video(&self, video_id: i64, admin_id: i64, status: i16, notes: Option<&str>) -> Result<bool, AppError>;
     /// Admin video list with filters (status, pagination).
@@ -187,7 +187,7 @@ pub trait AdminRepo {
     async fn create_admin(&self, username: &str, password_hash: &str, role: i16, full_name: Option<&str>) -> Result<AdminRow, AppError>;
     /// CRUD: delete admin user (soft delete).
     async fn delete_admin(&self, id: i64) -> Result<bool, AppError>;
-    /// CRUD: update admin user (role, full_name, status).
+    /// CRUD: update admin user (role, `full_name`, status).
     async fn update_admin(&self, id: i64, role: i16, full_name: Option<&str>, status: i16) -> Result<bool, AppError>;
     /// Change admin password.
     async fn change_admin_password(&self, id: i64, new_hash: &str) -> Result<bool, AppError>;
@@ -202,7 +202,7 @@ pub enum AdminRole {
     Normal = 2,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct AdminRow {
     pub id: i64,
@@ -213,7 +213,7 @@ pub struct AdminRow {
     pub status: i16,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct AdminVideoRow {
     pub id: i64,
@@ -224,7 +224,7 @@ pub struct AdminVideoRow {
     pub total_clicks: i64,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct AdminVideoDetailRow {
     pub id: i64,
@@ -242,7 +242,7 @@ pub struct AdminVideoDetailRow {
     pub review_notes: Option<String>,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct AdminCustomerRow {
     pub id: i64,
@@ -260,7 +260,7 @@ pub trait ReportRepo {
     async fn video_summary(&self) -> Result<VideoSummaryRow, AppError>;
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct RevenueRow {
     pub date: String,
@@ -268,7 +268,7 @@ pub struct RevenueRow {
     pub claim_count: i64,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct VideoDailyRow {
     pub date: String,
@@ -277,7 +277,7 @@ pub struct VideoDailyRow {
     pub valid_clicks: i64,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct VideoSummaryRow {
     pub total_videos: i64,
@@ -289,9 +289,9 @@ pub struct VideoSummaryRow {
 /// Token store for refresh tokens and access token blacklist (Redis).
 #[allow(async_fn_in_trait)]
 pub trait TokenStore {
-    /// Store refresh token → user_id mapping with TTL.
+    /// Store refresh token → `user_id` mapping with TTL.
     async fn store_refresh_token(&self, token: &str, user_id: i64, ttl_secs: u64) -> Result<(), AppError>;
-    /// Get user_id for refresh token. Returns None if expired/missing.
+    /// Get `user_id` for refresh token. Returns None if expired/missing.
     async fn get_refresh_token_user(&self, token: &str) -> Result<Option<i64>, AppError>;
     /// Delete refresh token (consumed after use).
     async fn delete_refresh_token(&self, token: &str) -> Result<(), AppError>;
