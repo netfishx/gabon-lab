@@ -1,6 +1,6 @@
 
 -- admin_users
-CREATE TABLE admin_users (
+CREATE TABLE IF NOT EXISTS admin_users (
     id              BIGSERIAL PRIMARY KEY,
     username        VARCHAR(100) NOT NULL,
     password_hash   VARCHAR(255) NOT NULL,
@@ -14,11 +14,11 @@ CREATE TABLE admin_users (
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     deleted_at      TIMESTAMPTZ
 );
-CREATE UNIQUE INDEX idx_admin_users_username_active
+CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_users_username_active
     ON admin_users(LOWER(username)) WHERE deleted_at IS NULL;
 
 -- customers
-CREATE TABLE customers (
+CREATE TABLE IF NOT EXISTS customers (
     id                          BIGSERIAL PRIMARY KEY,
     username                    VARCHAR(100) NOT NULL,
     password_hash               VARCHAR(255) NOT NULL,
@@ -35,11 +35,11 @@ CREATE TABLE customers (
     updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     deleted_at                  TIMESTAMPTZ
 );
-CREATE UNIQUE INDEX idx_customers_username_active
+CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_username_active
     ON customers(LOWER(username)) WHERE deleted_at IS NULL;
 
 -- videos
-CREATE TABLE videos (
+CREATE TABLE IF NOT EXISTS videos (
     id              BIGSERIAL PRIMARY KEY,
     customer_id     BIGINT NOT NULL REFERENCES customers(id),
     title           VARCHAR(500),
@@ -64,11 +64,11 @@ CREATE TABLE videos (
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     deleted_at      TIMESTAMPTZ
 );
-CREATE INDEX idx_videos_customer_id ON videos(customer_id);
-CREATE INDEX idx_videos_status ON videos(status) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_videos_customer_id ON videos(customer_id);
+CREATE INDEX IF NOT EXISTS idx_videos_status ON videos(status) WHERE deleted_at IS NULL;
 
 -- video_play_records
-CREATE TABLE video_play_records (
+CREATE TABLE IF NOT EXISTS video_play_records (
     id              BIGSERIAL PRIMARY KEY,
     video_id        BIGINT NOT NULL REFERENCES videos(id),
     customer_id     BIGINT REFERENCES customers(id),
@@ -76,10 +76,10 @@ CREATE TABLE video_play_records (
     ip_address      VARCHAR(45),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_play_records_video ON video_play_records(video_id);
+CREATE INDEX IF NOT EXISTS idx_play_records_video ON video_play_records(video_id);
 
 -- video_likes
-CREATE TABLE video_likes (
+CREATE TABLE IF NOT EXISTS video_likes (
     id              BIGSERIAL PRIMARY KEY,
     video_id        BIGINT NOT NULL REFERENCES videos(id),
     customer_id     BIGINT NOT NULL REFERENCES customers(id),
@@ -88,7 +88,7 @@ CREATE TABLE video_likes (
 );
 
 -- user_follows
-CREATE TABLE user_follows (
+CREATE TABLE IF NOT EXISTS user_follows (
     id              BIGSERIAL PRIMARY KEY,
     follower_id     BIGINT NOT NULL REFERENCES customers(id),
     followed_id     BIGINT NOT NULL REFERENCES customers(id),
@@ -96,10 +96,10 @@ CREATE TABLE user_follows (
     UNIQUE(follower_id, followed_id),
     CHECK(follower_id != followed_id)
 );
-CREATE INDEX idx_follows_followed ON user_follows(followed_id);
+CREATE INDEX IF NOT EXISTS idx_follows_followed ON user_follows(followed_id);
 
 -- task_definitions
-CREATE TABLE task_definitions (
+CREATE TABLE IF NOT EXISTS task_definitions (
     id              BIGSERIAL PRIMARY KEY,
     task_code       VARCHAR(100) UNIQUE NOT NULL,
     task_name       VARCHAR(255) NOT NULL,
@@ -119,7 +119,7 @@ CREATE TABLE task_definitions (
 );
 
 -- task_progress
-CREATE TABLE task_progress (
+CREATE TABLE IF NOT EXISTS task_progress (
     id              BIGSERIAL PRIMARY KEY,
     customer_id     BIGINT NOT NULL REFERENCES customers(id),
     task_id         BIGINT NOT NULL REFERENCES task_definitions(id),
@@ -134,5 +134,5 @@ CREATE TABLE task_progress (
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(customer_id, task_id, period_key)
 );
-CREATE INDEX idx_task_progress_customer ON task_progress(customer_id);
+CREATE INDEX IF NOT EXISTS idx_task_progress_customer ON task_progress(customer_id);
 

@@ -26,7 +26,8 @@ pub async fn login_handler(
     Json(body): Json<AdminAuthRequest>,
 ) -> Result<JsonData<AdminLoginResponse>, AppError> {
     let repo = PgAdminRepo { pool: &state.db };
-    let result = admin_login(&repo, &state.config.jwt, &body.username, &body.password).await?;
+    let store = RedisTokenStore { pool: &state.redis };
+    let result = admin_login(&repo, &store, &state.config.jwt, &body.username, &body.password).await?;
     Ok(JsonData::ok(result))
 }
 
@@ -183,6 +184,7 @@ pub async fn admin_logout_handler(
     let store = RedisTokenStore { pool: &state.redis };
     let remaining = (claims.exp - chrono::Utc::now().timestamp()).max(0).cast_unsigned();
     store.blacklist_access_token(raw_token, remaining).await?;
+    store.revoke_user_sessions(claims.sub, state.config.jwt.admin_refresh_ttl).await?;
     Ok(JsonData::ok(()))
 }
 
@@ -317,6 +319,7 @@ impl axum::extract::FromRequestParts<AppState> for AuthAdmin {
 #[serde(rename_all = "camelCase")]
 pub struct AdminLoginResponse {
     pub access_token: String,
+    pub refresh_token: String,
     pub id: i64,
     pub username: String,
     pub full_name: Option<String>,
@@ -325,6 +328,7 @@ pub struct AdminLoginResponse {
 
 pub async fn admin_login(
     repo: &impl AdminRepo,
+    store: &impl TokenStore,
     jwt_config: &JwtConfig,
     username: &str,
     password: &str,
@@ -345,10 +349,15 @@ pub async fn admin_login(
     }
 
     repo.update_admin_last_login(admin.id).await?;
-    let token = sign_admin_token(&admin, jwt_config)?;
+    let access_token = sign_admin_token(&admin, jwt_config)?;
+    let refresh_token = uuid::Uuid::new_v4().to_string();
+    store
+        .store_refresh_token(&refresh_token, admin.id, jwt_config.admin_refresh_ttl)
+        .await?;
 
     Ok(AdminLoginResponse {
-        access_token: token,
+        access_token,
+        refresh_token,
         id: admin.id,
         username: admin.username,
         full_name: admin.full_name,
@@ -486,6 +495,12 @@ pub async fn admin_refresh_access_token(
         .rotate_refresh_token(refresh_token, &new_refresh, config.admin_refresh_ttl)
         .await?
         .ok_or(AppError::Unauthorized)?;
+
+    // Reject if admin logged out (revoked all sessions)
+    if store.is_user_revoked(admin_id).await? {
+        store.delete_refresh_token(&new_refresh).await?;
+        return Err(AppError::Unauthorized);
+    }
 
     let admin_row = AdminRow {
         id: admin_id,
@@ -646,24 +661,28 @@ mod tests {
     #[tokio::test]
     async fn admin_login_succeeds() {
         let repo = MockAdminRepo::with_admin(test_admin_row());
+        let store = MockTokenStore::new();
         let config = test_jwt_config();
-        let result = admin_login(&repo, &config, "admin", "admin123").await;
+        let result = admin_login(&repo, &store, &config, "admin", "admin123").await;
         assert!(result.is_ok());
+        assert!(!result.unwrap().refresh_token.is_empty());
     }
 
     #[tokio::test]
     async fn admin_login_fails_wrong_password() {
         let repo = MockAdminRepo::with_admin(test_admin_row());
+        let store = MockTokenStore::new();
         let config = test_jwt_config();
-        let result = admin_login(&repo, &config, "admin", "wrong").await;
+        let result = admin_login(&repo, &store, &config, "admin", "wrong").await;
         assert!(result.is_err());
     }
 
     #[tokio::test]
     async fn admin_login_fails_nonexistent() {
         let repo = MockAdminRepo::empty();
+        let store = MockTokenStore::new();
         let config = test_jwt_config();
-        let result = admin_login(&repo, &config, "nobody", "pass").await;
+        let result = admin_login(&repo, &store, &config, "nobody", "pass").await;
         assert!(result.is_err());
     }
 
@@ -672,8 +691,9 @@ mod tests {
         let mut admin = test_admin_row();
         admin.status = 0; // disabled
         let repo = MockAdminRepo::with_admin(admin);
+        let store = MockTokenStore::new();
         let config = test_jwt_config();
-        let result = admin_login(&repo, &config, "admin", "admin123").await;
+        let result = admin_login(&repo, &store, &config, "admin", "admin123").await;
         assert!(result.is_err());
     }
 
@@ -897,6 +917,12 @@ mod tests {
         }
         async fn is_blacklisted(&self, token: &str) -> Result<bool, AppError> {
             Ok(self.blacklist.lock().unwrap().contains(&token.to_string()))
+        }
+        async fn revoke_user_sessions(&self, _user_id: i64, _ttl: u64) -> Result<(), AppError> {
+            Ok(())
+        }
+        async fn is_user_revoked(&self, _user_id: i64) -> Result<bool, AppError> {
+            Ok(false)
         }
     }
 

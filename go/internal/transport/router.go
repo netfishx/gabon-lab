@@ -42,6 +42,10 @@ func RegisterRoutes(e *echo.Echo, h *Handler, authCfg middleware.AuthConfig, rdb
 	e.Use(echomw.BodyLimit("50M"))
 	e.Use(echomw.ContextTimeoutWithConfig(echomw.ContextTimeoutConfig{
 		Timeout: 30 * time.Second,
+		Skipper: func(c echo.Context) bool {
+			p := c.Path()
+			return p == "/api/v1/videos/upload" || p == "/api/v1/users/me/avatar"
+		},
 	}))
 
 	// Health check (pure Echo, outside Huma)

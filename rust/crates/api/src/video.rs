@@ -79,6 +79,7 @@ pub async fn unlike(
 
 #[derive(Deserialize)]
 pub struct PlayPath {
+    #[serde(rename = "videoId")]
     pub video_id: i64,
 }
 
@@ -173,21 +174,36 @@ pub async fn upload(
     AuthCustomer(claims): AuthCustomer,
     mut multipart: Multipart,
 ) -> Result<JsonData<UploadResponse>, AppError> {
-    let field = multipart
+    let mut file_data: Option<(String, Vec<u8>)> = None; // (content_type, bytes)
+    let mut title: Option<String> = None;
+    let mut description: Option<String> = None;
+
+    while let Some(field) = multipart
         .next_field()
         .await
         .map_err(|e| AppError::BadRequest(format!("multipart 解析失败: {e}")))?
-        .ok_or_else(|| AppError::BadRequest("缺少文件字段".into()))?;
+    {
+        match field.name() {
+            Some("file") => {
+                let content_type = field.content_type().unwrap_or("video/mp4").to_string();
+                let data = field
+                    .bytes()
+                    .await
+                    .map_err(|e| AppError::BadRequest(format!("读取文件失败: {e}")))?;
+                file_data = Some((content_type, data.to_vec()));
+            }
+            Some("title") => {
+                title = field.text().await.ok().filter(|s| !s.is_empty());
+            }
+            Some("description") => {
+                description = field.text().await.ok().filter(|s| !s.is_empty());
+            }
+            _ => {}
+        }
+    }
 
-    let content_type = field
-        .content_type()
-        .unwrap_or("video/mp4")
-        .to_string();
-
-    let data = field
-        .bytes()
-        .await
-        .map_err(|e| AppError::BadRequest(format!("读取文件失败: {e}")))?;
+    let (content_type, data) =
+        file_data.ok_or_else(|| AppError::BadRequest("缺少 file 字段".into()))?;
 
     if data.len() > MAX_VIDEO_SIZE {
         return Err(AppError::BadRequest(format!(
@@ -206,14 +222,15 @@ pub async fn upload(
             &state.config.s3.bucket_videos,
             &key,
             &content_type,
-            data.to_vec(),
+            data,
         )
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
+    let _ = description; // reserved for future use
     let repo = PgVideoRepo { pool: &state.db };
     let video_id = repo
-        .create_video(claims.sub, None, &resource_url, None, None)
+        .create_video(claims.sub, title.as_deref(), &resource_url, None, None)
         .await
         .map_err(|e| {
             tracing::error!("Failed to create video record: {e}");

@@ -218,6 +218,12 @@ mod tests {
         async fn is_blacklisted(&self, token: &str) -> Result<bool, AppError> {
             Ok(self.blacklist.lock().unwrap().contains(&token.to_string()))
         }
+        async fn revoke_user_sessions(&self, _user_id: i64, _ttl: u64) -> Result<(), AppError> {
+            Ok(())
+        }
+        async fn is_user_revoked(&self, _user_id: i64) -> Result<bool, AppError> {
+            Ok(false)
+        }
     }
 
     fn test_jwt_config() -> JwtConfig {

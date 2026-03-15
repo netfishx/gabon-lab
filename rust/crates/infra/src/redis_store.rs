@@ -65,6 +65,20 @@ impl gabon_shared::traits::TokenStore for RedisTokenStore<'_> {
         Ok(result)
     }
 
+    async fn revoke_user_sessions(&self, user_id: i64, ttl_secs: u64) -> Result<(), AppError> {
+        let mut conn = self.conn().await?;
+        let key = format!("revoked:{user_id}");
+        conn.set_ex::<_, _, ()>(&key, 1, ttl_secs).await.map_err(|e| AppError::Internal(e.to_string()))?;
+        Ok(())
+    }
+
+    async fn is_user_revoked(&self, user_id: i64) -> Result<bool, AppError> {
+        let mut conn = self.conn().await?;
+        let key = format!("revoked:{user_id}");
+        let exists: bool = conn.exists(&key).await.map_err(|e| AppError::Internal(e.to_string()))?;
+        Ok(exists)
+    }
+
     async fn blacklist_access_token(&self, token: &str, ttl_secs: u64) -> Result<(), AppError> {
         let mut conn = self.conn().await?;
         let key = format!("blacklist:{token}");

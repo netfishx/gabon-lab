@@ -67,10 +67,11 @@ async fn main() {
         config,
     };
 
-    // Upload routes: no timeout (large file transfers can exceed 30s)
+    // Upload routes: no timeout + raised body limit (large file transfers)
     let upload_routes = Router::new()
         .route("/api/videos/upload", post(video::upload))
-        .route("/api/users/me/avatar", post(customer::upload_avatar));
+        .route("/api/users/me/avatar", post(customer::upload_avatar))
+        .layer(axum::extract::DefaultBodyLimit::max(250 * 1024 * 1024));
 
     // All other routes: 30s timeout
     let api_routes = Router::new()

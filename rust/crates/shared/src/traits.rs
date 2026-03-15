@@ -315,6 +315,10 @@ pub trait TokenStore {
     ) -> Result<Option<i64>, AppError>;
     /// Blacklist an access token for remaining TTL.
     async fn blacklist_access_token(&self, token: &str, ttl_secs: u64) -> Result<(), AppError>;
+    /// Mark all refresh tokens for a user as revoked (logout invalidation).
+    async fn revoke_user_sessions(&self, user_id: i64, ttl_secs: u64) -> Result<(), AppError>;
+    /// Check if a user's sessions have been revoked.
+    async fn is_user_revoked(&self, user_id: i64) -> Result<bool, AppError>;
     /// Check if access token is blacklisted.
     async fn is_blacklisted(&self, token: &str) -> Result<bool, AppError>;
 }

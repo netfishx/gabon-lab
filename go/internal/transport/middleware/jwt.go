@@ -74,7 +74,12 @@ func customerAuth(cfg AuthConfig, required bool) func(huma.Context, func(huma.Co
 		}
 
 		blacklisted, err := cfg.TokenStore.IsBlacklisted(ctx.Context(), claims.JTI)
-		if err == nil && blacklisted {
+		if err != nil {
+			writeError(ctx, http.StatusServiceUnavailable,
+				"SERVICE_UNAVAILABLE", "unable to verify token status")
+			return
+		}
+		if blacklisted {
 			writeError(ctx, http.StatusUnauthorized,
 				string(model.ErrTokenInvalid), "token has been revoked")
 			return
@@ -110,7 +115,12 @@ func RequireAdminAuth(cfg AuthConfig) func(huma.Context, func(huma.Context)) {
 		}
 
 		blacklisted, err := cfg.TokenStore.IsBlacklisted(ctx.Context(), claims.JTI)
-		if err == nil && blacklisted {
+		if err != nil {
+			writeError(ctx, http.StatusServiceUnavailable,
+				"SERVICE_UNAVAILABLE", "unable to verify token status")
+			return
+		}
+		if blacklisted {
 			writeError(ctx, http.StatusUnauthorized,
 				string(model.ErrTokenInvalid), "token has been revoked")
 			return

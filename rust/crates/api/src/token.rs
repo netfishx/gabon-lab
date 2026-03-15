@@ -51,6 +51,8 @@ pub async fn logout_handler(
     let store = RedisTokenStore { pool: &state.redis };
     let remaining = (claims.exp - chrono::Utc::now().timestamp()).max(0).cast_unsigned();
     logout(&store, raw_token, remaining).await?;
+    // Revoke all refresh tokens so they can't be used after logout
+    store.revoke_user_sessions(claims.sub, state.config.jwt.customer_refresh_ttl).await?;
     Ok(JsonData::ok(()))
 }
 
@@ -83,6 +85,12 @@ pub async fn refresh_access_token(
         .rotate_refresh_token(refresh_token, &new_refresh, config.customer_refresh_ttl)
         .await?
         .ok_or(AppError::Unauthorized)?;
+
+    // Reject if user logged out (revoked all sessions)
+    if store.is_user_revoked(user_id).await? {
+        store.delete_refresh_token(&new_refresh).await?;
+        return Err(AppError::Unauthorized);
+    }
 
     let access = crate::service::sign_access_token(
         &gabon_shared::traits::CustomerRow {
@@ -177,6 +185,12 @@ mod tests {
         }
         async fn is_blacklisted(&self, token: &str) -> Result<bool, AppError> {
             Ok(self.blacklist.lock().unwrap().contains(&token.to_string()))
+        }
+        async fn revoke_user_sessions(&self, _user_id: i64, _ttl: u64) -> Result<(), AppError> {
+            Ok(())
+        }
+        async fn is_user_revoked(&self, _user_id: i64) -> Result<bool, AppError> {
+            Ok(false)
         }
     }
 
