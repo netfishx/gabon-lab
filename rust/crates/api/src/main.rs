@@ -25,6 +25,9 @@ mod social;
 mod token;
 mod video;
 
+#[cfg(test)]
+mod test_util;
+
 #[derive(Clone)]
 pub struct AppState {
     pub db: PgPool,

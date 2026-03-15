@@ -4,7 +4,7 @@ db_engine = "sqlite"
 replication_factor = 1
 
 rpc_bind_addr = "[::]:3901"
-rpc_secret = "5bb542c40c492f9e3d0bdefdb6f458f08507fc8f1dc3d606410f9cecda3ba435"
+rpc_secret = "CHANGE_ME_run_openssl_rand_hex_32"
 
 [s3_api]
 s3_region = "garage"
@@ -12,4 +12,4 @@ api_bind_addr = "[::]:3900"
 
 [admin]
 api_bind_addr = "[::]:3903"
-admin_token = "s3admintoken"
+admin_token = "CHANGE_ME"

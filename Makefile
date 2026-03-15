@@ -1,5 +1,5 @@
 -include .env
-export
+export DATABASE_URL REDIS_URL GO_PORT RUST_PORT
 
 .PHONY: up down migrate migrate-down migrate-status seed \
         dev-go dev-rust build-go build-rust test-go test-rust \
@@ -8,6 +8,7 @@ export
 # ─── Infrastructure ─────────────────────────────
 
 up:
+	@test -f garage.toml || cp garage.toml.example garage.toml
 	docker compose up -d
 	@echo "Waiting for postgres..."
 	@until docker compose exec -T postgres pg_isready -U postgres > /dev/null 2>&1; do sleep 1; done
