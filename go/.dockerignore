@@ -1,0 +1,10 @@
+.git
+.env
+.env.*
+.claude/
+docs/
+tests/
+bin/
+*.test
+README.md
+CLAUDE.md

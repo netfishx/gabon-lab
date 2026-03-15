@@ -1,0 +1,55 @@
+build-gabon-admin-test:
+  stage: build
+  tags:
+    - build
+  only:
+    refs:
+      - test
+    changes:
+      - gabon-admin/**/*
+  script:
+    - docker build -f gabon-admin/Dockerfile.test -t 172.31.32.26:5555/gabon-admin:$CI_COMMIT_SHORT_SHA .
+    - docker push 172.31.32.26:5555/gabon-admin:$CI_COMMIT_SHORT_SHA
+
+deploy-gabon-admin-test:
+  stage: deploy
+  tags:
+    - gabon-test
+  only:
+    refs:
+      - test
+    changes:
+      - gabon-admin/**/*
+  script:
+    - docker pull 172.31.32.26:5555/gabon-admin:$CI_COMMIT_SHORT_SHA
+    - docker stop gabon-admin || true
+    - docker rm gabon-admin || true
+    - docker run -d -p 51011:51011 --name gabon-admin --restart unless-stopped 172.31.32.26:5555/gabon-admin:$CI_COMMIT_SHORT_SHA
+
+build-gabon-service-test:
+  stage: build
+  tags:
+    - build
+  only:
+    refs:
+      - test
+    changes:
+      - gabon-service/**/*
+  script:
+    - docker build -f gabon-service/Dockerfile.test -t 172.31.32.26:5555/gabon-service:$CI_COMMIT_SHORT_SHA .
+    - docker push 172.31.32.26:5555/gabon-service:$CI_COMMIT_SHORT_SHA
+
+deploy-gabon-service-test:
+  stage: deploy
+  tags:
+    - gabon-test
+  only:
+    refs:
+      - test
+    changes:
+      - gabon-service/**/*
+  script:
+    - docker pull 172.31.32.26:5555/gabon-service:$CI_COMMIT_SHORT_SHA
+    - docker stop gabon-service || true
+    - docker rm gabon-service || true
+    - docker run -d -p 51012:51012 --name gabon-service --restart unless-stopped 172.31.32.26:5555/gabon-service:$CI_COMMIT_SHORT_SHA

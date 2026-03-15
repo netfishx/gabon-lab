@@ -1,0 +1,21 @@
+[package]
+name = "gabon-infra"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+gabon-shared = { path = "../shared" }
+gabon-domain = { path = "../domain" }
+aws-sdk-s3 = { workspace = true }
+aws-config = { workspace = true }
+chrono = { workspace = true }
+deadpool-redis = { workspace = true }
+serde = { workspace = true }
+sqlx = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[lints]
+workspace = true
