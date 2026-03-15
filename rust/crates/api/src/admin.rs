@@ -176,17 +176,11 @@ pub async fn admin_refresh_handler(
 
 pub async fn admin_logout_handler(
     State(state): State<AppState>,
-    headers: axum::http::HeaderMap,
     AuthAdmin(claims): AuthAdmin,
 ) -> Result<JsonData<()>, AppError> {
-    let raw_token = headers
-        .get("authorization")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|h| h.strip_prefix("Bearer "))
-        .ok_or(AppError::Unauthorized)?;
     let store = RedisTokenStore { pool: &state.redis };
     let remaining = (claims.exp - chrono::Utc::now().timestamp()).max(0).cast_unsigned();
-    store.blacklist_access_token(raw_token, remaining).await?;
+    store.blacklist_access_token(&claims.jti, remaining).await?;
     store.revoke_user_sessions(claims.sub, state.config.jwt.admin_refresh_ttl).await?;
     Ok(JsonData::ok(()))
 }
@@ -312,7 +306,7 @@ impl axum::extract::FromRequestParts<AppState> for AuthAdmin {
         let claims = verify_admin_token(token, &state.config.jwt)?;
 
         let store = RedisTokenStore { pool: &state.redis };
-        if store.is_blacklisted(token).await? {
+        if store.is_blacklisted(&claims.jti).await? {
             return Err(AppError::Unauthorized);
         }
 
@@ -403,12 +397,14 @@ pub async fn review_video_action(
 
 pub fn sign_admin_token(admin: &AdminRow, config: &JwtConfig) -> Result<String, AppError> {
     let now = Utc::now().timestamp();
+    let jti = uuid::Uuid::new_v4().to_string();
     let role_str = match admin.role {
         1 => "superadmin",
         _ => "admin",
     };
     let claims = Claims {
         sub: admin.id,
+        jti,
         iss: "gabon-admin".into(),
         aud: "admin".into(),
         iat: now,

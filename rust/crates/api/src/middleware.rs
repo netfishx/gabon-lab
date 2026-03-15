@@ -32,7 +32,7 @@ impl FromRequestParts<AppState> for AuthCustomer {
         let claims = service::verify_customer_token(token, &state.config.jwt)?;
 
         let store = RedisTokenStore { pool: &state.redis };
-        if store.is_blacklisted(token).await? {
+        if store.is_blacklisted(&claims.jti).await? {
             return Err(AppError::Unauthorized);
         }
 
@@ -59,7 +59,7 @@ impl FromRequestParts<AppState> for OptionalAuth {
         };
 
         let store = RedisTokenStore { pool: &state.redis };
-        if store.is_blacklisted(token).await.unwrap_or(false) {
+        if store.is_blacklisted(&claims.jti).await.unwrap_or(false) {
             return Ok(Self(None));
         }
 

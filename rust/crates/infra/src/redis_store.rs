@@ -88,14 +88,14 @@ impl gabon_shared::traits::TokenStore for RedisTokenStore<'_> {
 
     async fn blacklist_access_token(&self, token: &str, ttl_secs: u64) -> Result<(), AppError> {
         let mut conn = self.conn().await?;
-        let key = format!("blacklist:{token}");
+        let key = format!("token:blacklist:{token}");
         conn.set_ex::<_, _, ()>(&key, 1, ttl_secs).await.map_err(|e| AppError::Internal(e.to_string()))?;
         Ok(())
     }
 
     async fn is_blacklisted(&self, token: &str) -> Result<bool, AppError> {
         let mut conn = self.conn().await?;
-        let key = format!("blacklist:{token}");
+        let key = format!("token:blacklist:{token}");
         let exists: bool = conn.exists(&key).await.map_err(|e| AppError::Internal(e.to_string()))?;
         Ok(exists)
     }

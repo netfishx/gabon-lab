@@ -9,6 +9,8 @@ use gabon_shared::traits::{AuthRepo, CustomerRow, TokenStore};
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
     pub sub: i64,
+    #[serde(default)]
+    pub jti: String,
     pub iss: String,
     pub aud: String,
     pub exp: i64,
@@ -156,8 +158,10 @@ pub fn verify_customer_token(token: &str, jwt_config: &JwtConfig) -> Result<Clai
 
 pub(crate) fn sign_access_token(customer: &CustomerRow, config: &JwtConfig) -> Result<String, AppError> {
     let now = Utc::now().timestamp();
+    let jti = uuid::Uuid::new_v4().to_string();
     let claims = Claims {
         sub: customer.id,
+        jti,
         iss: "gabon-service".into(),
         aud: "customer".into(),
         iat: now,
@@ -368,6 +372,7 @@ mod tests {
         let config = test_jwt_config();
         let claims = Claims {
             sub: 42,
+            jti: uuid::Uuid::new_v4().to_string(),
             iss: "gabon-service".into(),
             aud: "customer".into(),
             iat: Utc::now().timestamp() - 300,

@@ -40,17 +40,11 @@ pub async fn refresh_handler(
 
 pub async fn logout_handler(
     State(state): State<AppState>,
-    headers: axum::http::HeaderMap,
     AuthCustomer(claims): AuthCustomer,
 ) -> Result<JsonData<()>, AppError> {
-    let raw_token = headers
-        .get("authorization")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|h| h.strip_prefix("Bearer "))
-        .ok_or(AppError::Unauthorized)?;
     let store = RedisTokenStore { pool: &state.redis };
     let remaining = (claims.exp - chrono::Utc::now().timestamp()).max(0).cast_unsigned();
-    logout(&store, raw_token, remaining).await?;
+    logout(&store, &claims.jti, remaining).await?;
     // Revoke all refresh tokens so they can't be used after logout
     store.revoke_user_sessions(claims.sub, state.config.jwt.customer_refresh_ttl).await?;
     Ok(JsonData::ok(()))
