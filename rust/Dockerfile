@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM rust:1.94.0-slim AS chef
+FROM rust:nightly-slim AS chef
 RUN cargo install cargo-chef --locked
 WORKDIR /build
 
@@ -34,6 +34,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
     && groupadd -r appgroup && useradd -r -g appgroup appuser
 COPY --from=builder /usr/local/bin/gabon-api /gabon-api
 USER appuser
+ENV PORT=3000
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
     CMD curl -f http://localhost:3000/health || exit 1
