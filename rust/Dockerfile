@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
-FROM rust:nightly-slim AS chef
-RUN cargo install cargo-chef --locked
+FROM rust:slim AS chef
+RUN rustup default nightly-2026-03-17 && cargo install cargo-chef --locked
 WORKDIR /build
 
 FROM chef AS planner
