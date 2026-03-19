@@ -22,7 +22,7 @@ gabon-lab 短视频平台后端对比实验室新增现代 Java 实现。使用 
 | 维度 | 选型 | 理由 |
 |------|------|------|
 | 框架 | Spring Boot 4.0.3 + Spring Framework 7.0 | 正统 Java 生态，2025.11 发布 |
-| JDK | 25 (LTS, 2025.09) | 最新 LTS，Virtual Threads GA，Record/Sealed/Pattern Matching |
+| JDK | 25 (LTS, 2025.09) | 最新 LTS，Spring Boot 4.x 最低要求 JDK 17，推荐 25。Virtual Threads GA，Record/Sealed/Pattern Matching |
 | 数据库 | PostgreSQL 18（共享） | 统一基础设施，公平对比 |
 | 数据访问 | Spring Data JDBC | 显式 SQL，无 Hibernate 魔法，@Query 手写 |
 | 迁移 | Flyway（启动自动 + Gradle 插件手动） | 与 Kotlin 实现一致 |
@@ -200,6 +200,44 @@ public sealed interface AppError {
 | 任务领取 | 行锁 | `SELECT ... FOR UPDATE` + 状态校验 |
 | Refresh Token 轮换 | Redis Lua CAS | 原子 compare-and-swap |
 
+## Rate Limiting
+
+Redis 滑动窗口限流，按路由组区分策略（对齐 Go/Kotlin 实现）：
+
+| 路由组 | 限流维度 | 速率 |
+|--------|---------|------|
+| Auth (`/auth/**`) | IP | 20 req/min |
+| Public（未登录可访问） | IP | 120 req/min |
+| User（需登录） | customer_id | 200 req/min |
+| Admin（管理端） | admin_id | 200 req/min |
+
+实现方式：自定义 `RateLimitFilter`（`OncePerRequestFilter`）+ Redis Lua 滑动窗口脚本。Health 端点 (`/actuator/health`) 豁免限流（benchmark 基准端点）。
+
+## Design Constraints
+
+### Username Case Handling
+
+注册和登录统一用 `LOWER(username)` 查询。数据库唯一约束通过 partial index 实现：
+
+```sql
+CREATE UNIQUE INDEX idx_customers_username_active
+    ON customers(LOWER(username)) WHERE deleted_at IS NULL;
+```
+
+Service 层所有 username 查询必须使用 `LOWER()` 函数，禁止直接 `WHERE username = ?`。
+
+### Task System — Period Key
+
+任务进度按 period_key 隔离，业务时区固定为 `Asia/Shanghai`：
+
+| 任务周期 | period_key 格式 | 示例 |
+|---------|----------------|------|
+| 每日 | `yyyy-MM-dd` | `2026-03-19` |
+| 每周 | `yyyy-'W'ww`（ISO 8601） | `2026-W12` |
+| 每月 | `yyyy-MM` | `2026-03` |
+
+Period Key 由 Service 层统一生成（`TaskService.generatePeriodKey()`），禁止各处自行格式化。JVM 启动时区不可依赖，必须显式使用 `ZoneId.of("Asia/Shanghai")`。
+
 ## API Endpoints
 
 ### Client API `/api/v1/`
@@ -220,14 +258,14 @@ public sealed interface AppError {
 | | `/users/{id}/follow` | POST / DELETE |
 | Videos | `/videos` | GET |
 | | `/videos/featured` | GET |
-| | `/videos/my` | GET |
+| | `/videos/me` | GET |
 | | `/videos/upload-url` | POST |
 | | `/videos/confirm-upload` | POST |
 | | `/videos/{id}` | GET / DELETE |
 | | `/videos/{id}/like` | POST / DELETE |
 | | `/videos/{id}/play-click` | POST |
 | | `/videos/{id}/play-valid` | POST |
-| | `/videos/users/{id}` | GET |
+| | `/users/{id}/videos` | GET |
 | Tasks | `/tasks` | GET |
 | | `/tasks/{progressId}/claim` | POST |
 | Activity | `/activity/sign-in` | POST |
@@ -237,6 +275,7 @@ public sealed interface AppError {
 | Module | Endpoint | Method |
 |--------|----------|--------|
 | Auth | `/auth/login` | POST |
+| | `/auth/refresh` | POST |
 | | `/auth/logout` | POST |
 | | `/auth/me` | GET |
 | Admin Users | `/admin-users` | GET / POST |
@@ -248,8 +287,8 @@ public sealed interface AppError {
 | | `/videos/{id}` | GET / DELETE |
 | | `/videos/{id}/review` | POST |
 | Reports | `/reports/revenue` | GET |
-| | `/reports/daily-videos` | GET |
-| | `/reports/summary` | GET |
+| | `/reports/video/daily` | GET |
+| | `/reports/video/summary` | GET |
 
 ~40 endpoints total, fully aligned with Go implementation.
 
@@ -265,6 +304,15 @@ public sealed interface AppError {
 - **Unit tests**: JUnit 5 + Mockito — service layer, 100% business logic coverage
 - **Integration tests**: Spring Boot Test + Testcontainers (PostgreSQL) — controller + repository
 - **Commands**: `make test-java` → `./gradlew test`
+
+### Required Concurrency Tests (CI Gate)
+
+以下 4 个并发场景必须覆盖，与 Go CLAUDE.md 对齐：
+
+1. **并发 Refresh Token**：多线程同时 refresh 同一 token，仅一个成功，其余失败
+2. **Logout 后 Refresh 失效**：logout 后立即 refresh，必须返回错误
+3. **并发点赞**：N 个线程同时对同一视频点赞，`like_count` 恰好增 1（不是 N）
+4. **并发任务领取**：多线程同时 claim 同一 task_progress，仅一个成功
 
 ## Docker
 
@@ -311,7 +359,7 @@ migrate-java:   cd java && ./gradlew flywayMigrate
 
 # Updated aggregate commands
 migrate:        migrate-go migrate-rust migrate-java
-bench-all:      bench-oha bench-k6-go bench-k6-rust bench-k6-java bench-metrics bench-correctness
+bench-all:      bench-oha bench-k6-go bench-k6-rust bench-k6-kotlin bench-k6-java bench-metrics bench-correctness
 ```
 
 ## Port Assignment
