@@ -10,8 +10,10 @@ class SocialService(
     private val socialRepo: SocialRepo,
     private val customerRepo: CustomerRepo,
 ) {
-
-    suspend fun follow(followerId: Long, followedId: Long) {
+    suspend fun follow(
+        followerId: Long,
+        followedId: Long,
+    ) {
         if (followerId == followedId) {
             throw AppException(AppError.CannotFollowSelf())
         }
@@ -25,7 +27,10 @@ class SocialService(
         }
     }
 
-    suspend fun unfollow(followerId: Long, followedId: Long) {
+    suspend fun unfollow(
+        followerId: Long,
+        followedId: Long,
+    ) {
         if (followerId == followedId) {
             throw AppException(AppError.CannotFollowSelf())
         }
@@ -36,28 +41,26 @@ class SocialService(
         }
     }
 
-    suspend fun getFollowStatus(viewerId: Long?, targetId: Long): Int =
-        socialRepo.getFollowStatus(viewerId, targetId)
+    suspend fun getFollowStatus(
+        viewerId: Long?,
+        targetId: Long,
+    ): Int = socialRepo.getFollowStatus(viewerId, targetId)
 
     suspend fun getFollowing(
         userId: Long,
         page: Int,
         pageSize: Int,
         viewerId: Long?,
-    ): Pair<List<FollowUserRow>, Long> =
-        socialRepo.listFollowing(userId, page, pageSize, viewerId)
+    ): Pair<List<FollowUserRow>, Long> = socialRepo.listFollowing(userId, page, pageSize, viewerId)
 
     suspend fun getFollowers(
         userId: Long,
         page: Int,
         pageSize: Int,
         viewerId: Long?,
-    ): Pair<List<FollowUserRow>, Long> =
-        socialRepo.listFollowers(userId, page, pageSize, viewerId)
+    ): Pair<List<FollowUserRow>, Long> = socialRepo.listFollowers(userId, page, pageSize, viewerId)
 
-    suspend fun getFollowingCount(userId: Long): Long =
-        socialRepo.getFollowingCount(userId)
+    suspend fun getFollowingCount(userId: Long): Long = socialRepo.getFollowingCount(userId)
 
-    suspend fun getFollowerCount(userId: Long): Long =
-        socialRepo.getFollowerCount(userId)
+    suspend fun getFollowerCount(userId: Long): Long = socialRepo.getFollowerCount(userId)
 }

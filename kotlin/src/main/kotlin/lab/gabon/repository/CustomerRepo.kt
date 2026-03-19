@@ -35,48 +35,57 @@ data class CustomerRow(
 )
 
 class CustomerRepo {
-
-    suspend fun create(username: String, passwordHash: String): Long = dbQuery {
-        Customers.insertAndGetId {
-            it[Customers.username] = username
-            it[Customers.passwordHash] = passwordHash
-        }.value
-    }
-
-    suspend fun findByUsername(username: String): CustomerRow? = dbQuery {
-        Customers
-            .selectAll()
-            .where {
-                (Customers.username.lowerCase() eq username.lowercase()) and
-                    Customers.deletedAt.isNull()
-            }
-            .singleOrNull()
-            ?.toCustomerRow()
-    }
-
-    suspend fun findById(id: Long): CustomerRow? = dbQuery {
-        Customers
-            .selectAll()
-            .where {
-                (Customers.id eq id) and Customers.deletedAt.isNull()
-            }
-            .singleOrNull()
-            ?.toCustomerRow()
-    }
-
-    suspend fun updatePassword(id: Long, newHash: String): Unit = dbQuery {
-        Customers.update({ Customers.id eq id }) {
-            it[passwordHash] = newHash
-            it[updatedAt] = CurrentTimestampWithTimeZone
+    suspend fun create(
+        username: String,
+        passwordHash: String,
+    ): Long =
+        dbQuery {
+            Customers
+                .insertAndGetId {
+                    it[Customers.username] = username
+                    it[Customers.passwordHash] = passwordHash
+                }.value
         }
-    }
 
-    suspend fun updateLastLogin(id: Long): Unit = dbQuery {
-        Customers.update({ Customers.id eq id }) {
-            it[lastLoginAt] = CurrentTimestampWithTimeZone
-            it[updatedAt] = CurrentTimestampWithTimeZone
+    suspend fun findByUsername(username: String): CustomerRow? =
+        dbQuery {
+            Customers
+                .selectAll()
+                .where {
+                    (Customers.username.lowerCase() eq username.lowercase()) and
+                        Customers.deletedAt.isNull()
+                }.singleOrNull()
+                ?.toCustomerRow()
         }
-    }
+
+    suspend fun findById(id: Long): CustomerRow? =
+        dbQuery {
+            Customers
+                .selectAll()
+                .where {
+                    (Customers.id eq id) and Customers.deletedAt.isNull()
+                }.singleOrNull()
+                ?.toCustomerRow()
+        }
+
+    suspend fun updatePassword(
+        id: Long,
+        newHash: String,
+    ): Unit =
+        dbQuery {
+            Customers.update({ Customers.id eq id }) {
+                it[passwordHash] = newHash
+                it[updatedAt] = CurrentTimestampWithTimeZone
+            }
+        }
+
+    suspend fun updateLastLogin(id: Long): Unit =
+        dbQuery {
+            Customers.update({ Customers.id eq id }) {
+                it[lastLoginAt] = CurrentTimestampWithTimeZone
+                it[updatedAt] = CurrentTimestampWithTimeZone
+            }
+        }
 
     suspend fun updateProfile(
         id: Long,
@@ -84,29 +93,36 @@ class CustomerRepo {
         phone: String?,
         email: String?,
         signature: String?,
-    ): CustomerRow? = dbQuery {
-        Customers.update({ Customers.id eq id }) {
-            it.update(Customers.name, coalesceNullif(name, Customers.name))
-            it.update(Customers.phone, coalesceNullif(phone, Customers.phone))
-            it.update(Customers.email, coalesceNullif(email, Customers.email))
-            it.update(Customers.signature, coalesceNullif(signature, Customers.signature))
-            it[updatedAt] = CurrentTimestampWithTimeZone
+    ): CustomerRow? =
+        dbQuery {
+            Customers.update({ Customers.id eq id }) {
+                it.update(Customers.name, coalesceNullif(name, Customers.name))
+                it.update(Customers.phone, coalesceNullif(phone, Customers.phone))
+                it.update(Customers.email, coalesceNullif(email, Customers.email))
+                it.update(Customers.signature, coalesceNullif(signature, Customers.signature))
+                it[updatedAt] = CurrentTimestampWithTimeZone
+            }
+            Customers
+                .selectAll()
+                .where { (Customers.id eq id) and Customers.deletedAt.isNull() }
+                .singleOrNull()
+                ?.toCustomerRow()
         }
-        Customers.selectAll()
-            .where { (Customers.id eq id) and Customers.deletedAt.isNull() }
-            .singleOrNull()
-            ?.toCustomerRow()
-    }
 
     /**
      * COALESCE(NULLIF(value, ''), column) — keeps existing column value if input is null or empty.
      */
-    private fun coalesceNullif(value: String?, column: Column<String?>): Expression<String?> {
-        val nullifExpr = CustomFunction(
-            functionName = "NULLIF",
-            columnType = VarCharColumnType(255),
-            expr = arrayOf(stringLiteral(value ?: ""), stringLiteral("")),
-        )
+    @Suppress("MagicNumber")
+    private fun coalesceNullif(
+        value: String?,
+        column: Column<String?>,
+    ): Expression<String?> {
+        val nullifExpr =
+            CustomFunction(
+                functionName = "NULLIF",
+                columnType = VarCharColumnType(255),
+                expr = arrayOf(stringLiteral(value ?: ""), stringLiteral("")),
+            )
         return CustomFunction(
             functionName = "COALESCE",
             columnType = VarCharColumnType(255),
@@ -114,29 +130,33 @@ class CustomerRepo {
         )
     }
 
-    suspend fun updateAvatarUrl(id: Long, avatarUrl: String): Unit = dbQuery {
-        Customers.update({ Customers.id eq id }) {
-            it[Customers.avatarUrl] = avatarUrl
-            it[updatedAt] = CurrentTimestampWithTimeZone
+    suspend fun updateAvatarUrl(
+        id: Long,
+        avatarUrl: String,
+    ): Unit =
+        dbQuery {
+            Customers.update({ Customers.id eq id }) {
+                it[Customers.avatarUrl] = avatarUrl
+                it[updatedAt] = CurrentTimestampWithTimeZone
+            }
         }
-    }
 
-    private fun ResultRow.toCustomerRow(): CustomerRow = CustomerRow(
-        id = this[Customers.id].value,
-        username = this[Customers.username],
-        passwordHash = this[Customers.passwordHash],
-        name = this[Customers.name],
-        phone = this[Customers.phone],
-        email = this[Customers.email],
-        avatarUrl = this[Customers.avatarUrl],
-        signature = this[Customers.signature],
-        isVip = this[Customers.isVip],
-        diamondBalance = this[Customers.diamondBalance],
-        lastLoginAt = this[Customers.lastLoginAt]?.toKotlinInstant(),
-        createdAt = this[Customers.createdAt].toKotlinInstant(),
-        updatedAt = this[Customers.updatedAt].toKotlinInstant(),
-    )
+    private fun ResultRow.toCustomerRow(): CustomerRow =
+        CustomerRow(
+            id = this[Customers.id].value,
+            username = this[Customers.username],
+            passwordHash = this[Customers.passwordHash],
+            name = this[Customers.name],
+            phone = this[Customers.phone],
+            email = this[Customers.email],
+            avatarUrl = this[Customers.avatarUrl],
+            signature = this[Customers.signature],
+            isVip = this[Customers.isVip],
+            diamondBalance = this[Customers.diamondBalance],
+            lastLoginAt = this[Customers.lastLoginAt]?.toKotlinInstant(),
+            createdAt = this[Customers.createdAt].toKotlinInstant(),
+            updatedAt = this[Customers.updatedAt].toKotlinInstant(),
+        )
 
-    private fun OffsetDateTime.toKotlinInstant(): Instant =
-        Instant.fromEpochSeconds(toEpochSecond(), nano)
+    private fun OffsetDateTime.toKotlinInstant(): Instant = Instant.fromEpochSeconds(toEpochSecond(), nano)
 }

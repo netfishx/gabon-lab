@@ -1,10 +1,15 @@
 package lab.gabon.route
 
-import io.ktor.http.*
-import io.ktor.server.auth.*
-import io.ktor.server.request.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.auth.authenticate
+import io.ktor.server.auth.principal
+import io.ktor.server.request.receive
+import io.ktor.server.response.respond
+import io.ktor.server.routing.Route
+import io.ktor.server.routing.delete
+import io.ktor.server.routing.get
+import io.ktor.server.routing.post
+import io.ktor.server.routing.route
 import kotlinx.serialization.Serializable
 import lab.gabon.model.JsonData
 import lab.gabon.model.Paginated
@@ -119,8 +124,9 @@ fun Route.videoRoutes(videoService: VideoService) {
         // Optional auth routes (public, but extract principal if present)
         authenticate("customer", optional = true) {
             get("/{id}") {
-                val videoId = call.pathParameters["id"]?.toLongOrNull()
-                    ?: return@get call.respond(HttpStatusCode.BadRequest, JsonData.error(400, "invalid video id"))
+                val videoId =
+                    call.pathParameters["id"]?.toLongOrNull()
+                        ?: return@get call.respond(HttpStatusCode.BadRequest, JsonData.error(400, "invalid video id"))
 
                 val customerId = call.principal<CustomerPrincipal>()?.customerId
 
@@ -129,8 +135,9 @@ fun Route.videoRoutes(videoService: VideoService) {
             }
 
             post("/{videoId}/play-click") {
-                val videoId = call.pathParameters["videoId"]?.toLongOrNull()
-                    ?: return@post call.respond(HttpStatusCode.BadRequest, JsonData.error(400, "invalid video id"))
+                val videoId =
+                    call.pathParameters["videoId"]?.toLongOrNull()
+                        ?: return@post call.respond(HttpStatusCode.BadRequest, JsonData.error(400, "invalid video id"))
 
                 val customerId = call.principal<CustomerPrincipal>()?.customerId
                 val ipAddress = call.request.local.remoteAddress
@@ -140,8 +147,9 @@ fun Route.videoRoutes(videoService: VideoService) {
             }
 
             post("/{videoId}/play-valid") {
-                val videoId = call.pathParameters["videoId"]?.toLongOrNull()
-                    ?: return@post call.respond(HttpStatusCode.BadRequest, JsonData.error(400, "invalid video id"))
+                val videoId =
+                    call.pathParameters["videoId"]?.toLongOrNull()
+                        ?: return@post call.respond(HttpStatusCode.BadRequest, JsonData.error(400, "invalid video id"))
 
                 val customerId = call.principal<CustomerPrincipal>()?.customerId
                 val ipAddress = call.request.local.remoteAddress
@@ -155,8 +163,9 @@ fun Route.videoRoutes(videoService: VideoService) {
         authenticate("customer") {
             post("/{id}/like") {
                 val principal = call.customerPrincipal()
-                val videoId = call.pathParameters["id"]?.toLongOrNull()
-                    ?: return@post call.respond(HttpStatusCode.BadRequest, JsonData.error(400, "invalid video id"))
+                val videoId =
+                    call.pathParameters["id"]?.toLongOrNull()
+                        ?: return@post call.respond(HttpStatusCode.BadRequest, JsonData.error(400, "invalid video id"))
 
                 videoService.likeVideo(videoId, principal.customerId)
                 call.respond(HttpStatusCode.OK, JsonData.ok("liked"))
@@ -164,8 +173,12 @@ fun Route.videoRoutes(videoService: VideoService) {
 
             delete("/{id}/like") {
                 val principal = call.customerPrincipal()
-                val videoId = call.pathParameters["id"]?.toLongOrNull()
-                    ?: return@delete call.respond(HttpStatusCode.BadRequest, JsonData.error(400, "invalid video id"))
+                val videoId =
+                    call.pathParameters["id"]?.toLongOrNull()
+                        ?: return@delete call.respond(
+                            HttpStatusCode.BadRequest,
+                            JsonData.error(400, "invalid video id"),
+                        )
 
                 videoService.unlikeVideo(videoId, principal.customerId)
                 call.respond(HttpStatusCode.OK, JsonData.ok("unliked"))
@@ -183,15 +196,16 @@ fun Route.videoRoutes(videoService: VideoService) {
                 val principal = call.customerPrincipal()
                 val req = call.receive<ConfirmUploadRequest>()
 
-                val videoId = videoService.confirmUpload(
-                    customerId = principal.customerId,
-                    s3Key = req.s3Key,
-                    fileName = req.fileName,
-                    fileSize = req.fileSize,
-                    mimeType = req.mimeType,
-                    title = req.title,
-                    description = req.description,
-                )
+                val videoId =
+                    videoService.confirmUpload(
+                        customerId = principal.customerId,
+                        s3Key = req.s3Key,
+                        fileName = req.fileName,
+                        fileSize = req.fileSize,
+                        mimeType = req.mimeType,
+                        title = req.title,
+                        description = req.description,
+                    )
                 call.respond(
                     HttpStatusCode.Created,
                     JsonData.ok(ConfirmUploadDto(videoId = videoId, status = 3)),
@@ -213,8 +227,12 @@ fun Route.videoRoutes(videoService: VideoService) {
 
             delete("/{id}") {
                 val principal = call.customerPrincipal()
-                val videoId = call.pathParameters["id"]?.toLongOrNull()
-                    ?: return@delete call.respond(HttpStatusCode.BadRequest, JsonData.error(400, "invalid video id"))
+                val videoId =
+                    call.pathParameters["id"]?.toLongOrNull()
+                        ?: return@delete call.respond(
+                            HttpStatusCode.BadRequest,
+                            JsonData.error(400, "invalid video id"),
+                        )
 
                 videoService.deleteVideo(videoId, principal.customerId)
                 call.respond(HttpStatusCode.OK, JsonData.ok("deleted"))
@@ -226,8 +244,9 @@ fun Route.videoRoutes(videoService: VideoService) {
 fun Route.userVideoRoutes(videoService: VideoService) {
     route("/users/{userId}/videos") {
         get {
-            val userId = call.pathParameters["userId"]?.toLongOrNull()
-                ?: return@get call.respond(HttpStatusCode.BadRequest, JsonData.error(400, "invalid user id"))
+            val userId =
+                call.pathParameters["userId"]?.toLongOrNull()
+                    ?: return@get call.respond(HttpStatusCode.BadRequest, JsonData.error(400, "invalid user id"))
 
             val page = call.queryParameters["page"]?.toIntOrNull() ?: 1
             val pageSize = call.queryParameters["page_size"]?.toIntOrNull() ?: 10
@@ -243,46 +262,49 @@ fun Route.userVideoRoutes(videoService: VideoService) {
 
 // ── Extension mappers ───────────────────────────────────────
 
-private fun PresignResult.toDto(): PresignResultDto = PresignResultDto(
-    uploadUrl = uploadUrl,
-    fileUrl = fileUrl,
-    s3Key = s3Key,
-)
+private fun PresignResult.toDto(): PresignResultDto =
+    PresignResultDto(
+        uploadUrl = uploadUrl,
+        fileUrl = fileUrl,
+        s3Key = s3Key,
+    )
 
-private fun VideoListRow.toDto(): VideoListItemDto = VideoListItemDto(
-    id = id,
-    customerId = customerId,
-    title = title,
-    fileName = fileName,
-    fileUrl = fileUrl,
-    thumbnailUrl = thumbnailUrl,
-    mimeType = mimeType,
-    status = status,
-    totalClicks = totalClicks,
-    validClicks = validClicks,
-    likeCount = likeCount,
-    createdAt = createdAt.toString(),
-    uploaderName = uploaderName,
-    uploaderAvatar = uploaderAvatar,
-)
+private fun VideoListRow.toDto(): VideoListItemDto =
+    VideoListItemDto(
+        id = id,
+        customerId = customerId,
+        title = title,
+        fileName = fileName,
+        fileUrl = fileUrl,
+        thumbnailUrl = thumbnailUrl,
+        mimeType = mimeType,
+        status = status,
+        totalClicks = totalClicks,
+        validClicks = validClicks,
+        likeCount = likeCount,
+        createdAt = createdAt.toString(),
+        uploaderName = uploaderName,
+        uploaderAvatar = uploaderAvatar,
+    )
 
-private fun VideoDetail.toDto(): VideoDetailDto = VideoDetailDto(
-    id = id,
-    customerId = customerId,
-    title = title,
-    description = description,
-    fileName = fileName,
-    fileSize = fileSize,
-    fileUrl = fileUrl,
-    thumbnailUrl = thumbnailUrl,
-    mimeType = mimeType,
-    duration = duration,
-    status = status,
-    totalClicks = totalClicks,
-    validClicks = validClicks,
-    likeCount = likeCount,
-    createdAt = createdAt.toString(),
-    uploaderName = uploaderName,
-    uploaderAvatar = uploaderAvatar,
-    isLiked = isLiked,
-)
+private fun VideoDetail.toDto(): VideoDetailDto =
+    VideoDetailDto(
+        id = id,
+        customerId = customerId,
+        title = title,
+        description = description,
+        fileName = fileName,
+        fileSize = fileSize,
+        fileUrl = fileUrl,
+        thumbnailUrl = thumbnailUrl,
+        mimeType = mimeType,
+        duration = duration,
+        status = status,
+        totalClicks = totalClicks,
+        validClicks = validClicks,
+        likeCount = likeCount,
+        createdAt = createdAt.toString(),
+        uploaderName = uploaderName,
+        uploaderAvatar = uploaderAvatar,
+        isLiked = isLiked,
+    )

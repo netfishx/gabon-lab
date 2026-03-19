@@ -7,7 +7,9 @@ import io.lettuce.core.api.coroutines.RedisCoroutinesCommands
 /** Result of a compare-and-swap on a refresh token family. */
 sealed interface CasResult {
     /** CAS succeeded; the family now points to the new JTI. */
-    data class Success(val userId: Long) : CasResult
+    data class Success(
+        val userId: Long,
+    ) : CasResult
 
     /** The family key does not exist (expired or deleted). */
     data object Missing : CasResult
@@ -27,23 +29,28 @@ sealed interface CasResult {
 class RedisTokenStore(
     private val redis: RedisCoroutinesCommands<String, String>,
 ) {
-
     // ── Blacklist ──────────────────────────────────────────────
 
     /** Add [jti] to the blacklist with the given TTL in seconds. */
-    suspend fun setBlacklist(jti: String, ttlSeconds: Long) {
+    suspend fun setBlacklist(
+        jti: String,
+        ttlSeconds: Long,
+    ) {
         redis.setex("token:blacklist:$jti", ttlSeconds, "1")
     }
 
     /** Check whether [jti] has been blacklisted. */
-    suspend fun isBlacklisted(jti: String): Boolean {
-        return (redis.exists("token:blacklist:$jti") ?: 0L) > 0L
-    }
+    suspend fun isBlacklisted(jti: String): Boolean = (redis.exists("token:blacklist:$jti") ?: 0L) > 0L
 
     // ── Refresh Token Family ───────────────────────────────────
 
     /** Create or overwrite a token family entry. */
-    suspend fun setFamily(familyId: String, userId: Long, currentJti: String, ttlSeconds: Long) {
+    suspend fun setFamily(
+        familyId: String,
+        userId: Long,
+        currentJti: String,
+        ttlSeconds: Long,
+    ) {
         redis.setex("token:family:$familyId", ttlSeconds, "$userId:$currentJti")
     }
 
@@ -55,17 +62,22 @@ class RedisTokenStore(
      * - Current JTI doesn't match [expectedJti] → delete key, return `-2` → [CasResult.Conflict]
      * - Match → update value with [newJti] (KEEPTTL), return `userId` → [CasResult.Success]
      */
-    suspend fun casFamily(familyId: String, expectedJti: String, newJti: String): CasResult {
-        val result = redis.eval<Long>(
-            CAS_SCRIPT,
-            ScriptOutputType.INTEGER,
-            arrayOf("token:family:$familyId"),
-            expectedJti,
-            newJti,
-        )
+    suspend fun casFamily(
+        familyId: String,
+        expectedJti: String,
+        newJti: String,
+    ): CasResult {
+        val result =
+            redis.eval<Long>(
+                CAS_SCRIPT,
+                ScriptOutputType.INTEGER,
+                arrayOf("token:family:$familyId"),
+                expectedJti,
+                newJti,
+            )
         return when {
-            result == null || result == -1L -> CasResult.Missing
-            result == -2L -> CasResult.Conflict
+            result == null || result == CAS_MISSING -> CasResult.Missing
+            result == CAS_CONFLICT -> CasResult.Conflict
             else -> CasResult.Success(userId = result)
         }
     }
@@ -76,6 +88,9 @@ class RedisTokenStore(
     }
 
     private companion object {
+        const val CAS_MISSING = -1L
+        const val CAS_CONFLICT = -2L
+
         /**
          * Lua CAS script for refresh token rotation.
          *
@@ -88,7 +103,8 @@ class RedisTokenStore(
          *   -1 if key is missing
          *   -2 if JTI mismatch (replay attack — key is deleted)
          */
-        val CAS_SCRIPT = """
+        val CAS_SCRIPT =
+            """
             local v = redis.call('GET', KEYS[1])
             if v == false then return -1 end
             local sep = string.find(v, ':', 1, true)
@@ -100,6 +116,6 @@ class RedisTokenStore(
             end
             redis.call('SET', KEYS[1], uid .. ':' .. ARGV[2], 'KEEPTTL')
             return tonumber(uid)
-        """.trimIndent()
+            """.trimIndent()
     }
 }

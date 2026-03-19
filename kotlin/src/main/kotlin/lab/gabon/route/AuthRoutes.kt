@@ -1,13 +1,16 @@
 package lab.gabon.route
 
-import io.ktor.http.*
-import io.ktor.server.auth.*
-import io.ktor.server.request.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.auth.authenticate
+import io.ktor.server.request.receive
+import io.ktor.server.response.respond
+import io.ktor.server.routing.Route
+import io.ktor.server.routing.get
+import io.ktor.server.routing.post
+import io.ktor.server.routing.put
+import io.ktor.server.routing.route
 import kotlinx.serialization.Serializable
 import lab.gabon.model.JsonData
-import lab.gabon.plugin.CustomerPrincipal
 import lab.gabon.plugin.customerPrincipal
 import lab.gabon.service.AuthService
 import lab.gabon.service.CustomerProfile
@@ -108,19 +111,21 @@ fun Route.authRoutes(authService: AuthService) {
 
 // ── Extension mappers ───────────────────────────────────────
 
-private fun TokenResponse.toDto(): TokenResponseDto = TokenResponseDto(
-    accessToken = accessToken,
-    refreshToken = refreshToken,
-)
+private fun TokenResponse.toDto(): TokenResponseDto =
+    TokenResponseDto(
+        accessToken = accessToken,
+        refreshToken = refreshToken,
+    )
 
-private fun CustomerProfile.toDto(): CustomerProfileDto = CustomerProfileDto(
-    id = id,
-    username = username,
-    name = name,
-    phone = phone,
-    email = email,
-    avatarUrl = avatarUrl,
-    signature = signature,
-    isVip = isVip,
-    diamondBalance = diamondBalance,
-)
+private fun CustomerProfile.toDto(): CustomerProfileDto =
+    CustomerProfileDto(
+        id = id,
+        username = username,
+        name = name,
+        phone = phone,
+        email = email,
+        avatarUrl = avatarUrl,
+        signature = signature,
+        isVip = isVip,
+        diamondBalance = diamondBalance,
+    )

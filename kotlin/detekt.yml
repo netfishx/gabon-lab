@@ -1,0 +1,31 @@
+complexity:
+  CyclomaticComplexMethod:
+    allowedComplexity: 20
+  LongMethod:
+    allowedLines: 200
+  LongParameterList:
+    allowedFunctionParameters: 10
+    allowedConstructorParameters: 12
+  TooManyFunctions:
+    allowedFunctionsPerFile: 30
+    allowedFunctionsPerClass: 20
+  LargeClass:
+    allowedLines: 800
+
+style:
+  MagicNumber:
+    excludes: ['**/test/**', '**/*Test.kt']
+    ignoreEnums: true
+    ignoreNamedArgument: true
+    ignorePropertyDeclaration: true
+    ignoreLocalVariableDeclaration: true
+    ignoreCompanionObjectPropertyDeclaration: true
+    ignoreAnnotation: true
+    ignoreRanges: true
+    ignoreHashCodeFunction: true
+    ignoreConstantDeclaration: true
+  MaxLineLength:
+    excludes: ['**/test/**', '**/*Test.kt']
+    excludeCommentStatements: true
+  ThrowsCount:
+    max: 5

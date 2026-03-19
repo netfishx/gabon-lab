@@ -29,10 +29,10 @@ class UserService(
     private val customerRepo: CustomerRepo,
     private val storageService: StorageService,
 ) {
-
     suspend fun getMyProfile(customerId: Long): MyProfile {
-        val customer = customerRepo.findById(customerId)
-            ?: throw AppException(AppError.NotFound("customer not found"))
+        val customer =
+            customerRepo.findById(customerId)
+                ?: throw AppException(AppError.NotFound("customer not found"))
         return customer.toMyProfile()
     }
 
@@ -43,8 +43,9 @@ class UserService(
         email: String?,
         signature: String?,
     ): MyProfile {
-        val updated = customerRepo.updateProfile(customerId, name, phone, email, signature)
-            ?: throw AppException(AppError.NotFound("customer not found"))
+        val updated =
+            customerRepo.updateProfile(customerId, name, phone, email, signature)
+                ?: throw AppException(AppError.NotFound("customer not found"))
         return updated.toMyProfile()
     }
 
@@ -59,21 +60,25 @@ class UserService(
         return AvatarPresignResult(uploadUrl = uploadUrl, avatarUrl = avatarUrl)
     }
 
-    suspend fun confirmAvatarUpload(customerId: Long, avatarUrl: String) {
+    suspend fun confirmAvatarUpload(
+        customerId: Long,
+        avatarUrl: String,
+    ) {
         customerRepo.updateAvatarUrl(customerId, avatarUrl)
     }
 
-    private fun CustomerRow.toMyProfile(): MyProfile = MyProfile(
-        id = id,
-        username = username,
-        name = name,
-        phone = phone,
-        email = email,
-        avatarUrl = avatarUrl,
-        signature = signature,
-        isVip = isVip,
-        diamondBalance = diamondBalance,
-        lastLoginAt = lastLoginAt?.toString(),
-        createdAt = createdAt.toString(),
-    )
+    private fun CustomerRow.toMyProfile(): MyProfile =
+        MyProfile(
+            id = id,
+            username = username,
+            name = name,
+            phone = phone,
+            email = email,
+            avatarUrl = avatarUrl,
+            signature = signature,
+            isVip = isVip,
+            diamondBalance = diamondBalance,
+            lastLoginAt = lastLoginAt?.toString(),
+            createdAt = createdAt.toString(),
+        )
 }

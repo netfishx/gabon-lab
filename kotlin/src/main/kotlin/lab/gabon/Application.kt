@@ -1,9 +1,9 @@
 package lab.gabon
 
+import io.ktor.server.application.ApplicationStopped
+import io.ktor.server.engine.embeddedServer
+import io.ktor.server.netty.Netty
 import io.lettuce.core.ExperimentalLettuceCoroutinesApi
-import io.ktor.server.application.*
-import io.ktor.server.engine.*
-import io.ktor.server.netty.*
 import lab.gabon.config.AppConfig
 import lab.gabon.config.createRedis
 import lab.gabon.config.initDatabase
@@ -69,7 +69,17 @@ fun main() {
         configureSerialization()
         configureErrorHandling()
         configureAuthentication(jwtService, tokenStore)
-        configureRouting(authService, socialService, customerRepo, videoService, adminService, userService, taskService, reportService, rateLimiter)
+        configureRouting(
+            authService,
+            socialService,
+            customerRepo,
+            videoService,
+            adminService,
+            userService,
+            taskService,
+            reportService,
+            rateLimiter,
+        )
 
         monitor.subscribe(ApplicationStopped) {
             storageService.close()

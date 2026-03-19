@@ -30,7 +30,6 @@ class TaskService(
     private val taskRepo: TaskRepo,
     private val signInRepo: SignInRepo,
 ) {
-
     companion object {
         val SHANGHAI_ZONE: ZoneId = ZoneId.of("Asia/Shanghai")
         const val SIGN_IN_REWARD = 1
@@ -63,46 +62,58 @@ class TaskService(
 
         for (tt in taskTypes) {
             val periodKey = generatePeriodKey(tt, now)
-            val filtered = taskRepo.listProgressWithTasks(
-                customerId = customerId,
-                periodKey = periodKey,
-                taskType = tt,
-                taskStatus = taskStatus,
-            )
+            val filtered =
+                taskRepo.listProgressWithTasks(
+                    customerId = customerId,
+                    periodKey = periodKey,
+                    taskType = tt,
+                    taskStatus = taskStatus,
+                )
             results.addAll(filtered)
         }
 
         return results.map { it.toTaskItem() }
     }
 
-    suspend fun claimReward(customerId: Long, progressId: Long): Int {
-        return taskRepo.claimReward(progressId, customerId)
-    }
+    suspend fun claimReward(
+        customerId: Long,
+        progressId: Long,
+    ): Int = taskRepo.claimReward(progressId, customerId)
 
-    suspend fun signIn(customerId: Long, now: Instant = Instant.now()): SignInResult {
+    suspend fun signIn(
+        customerId: Long,
+        now: Instant = Instant.now(),
+    ): SignInResult {
         val periodKey = generatePeriodKey(TaskType.DAILY.value, now)
         signInRepo.signIn(customerId, periodKey, SIGN_IN_REWARD)
         return SignInResult(diamonds = SIGN_IN_REWARD, periodKey = periodKey)
     }
 
-    suspend fun incrementWatchProgress(customerId: Long, now: Instant = Instant.now()) {
+    suspend fun incrementWatchProgress(
+        customerId: Long,
+        now: Instant = Instant.now(),
+    ) {
         // Find the daily watch task (category=1) progress for today
         val periodKey = generatePeriodKey(TaskType.DAILY.value, now)
         val definitions = taskRepo.findActiveTaskDefinitions(TaskType.DAILY.value)
         val watchTask = definitions.find { it.taskCategory.toInt() == 1 } ?: return
 
-        val progress = taskRepo.findProgressByCustomerAndTask(
-            customerId = customerId,
-            taskId = watchTask.id,
-            periodKey = periodKey,
-        ) ?: return
+        val progress =
+            taskRepo.findProgressByCustomerAndTask(
+                customerId = customerId,
+                taskId = watchTask.id,
+                periodKey = periodKey,
+            ) ?: return
 
         if (progress.taskStatus.toInt() == 1) { // IN_PROGRESS
             taskRepo.incrementProgress(progress.id)
         }
     }
 
-    fun generatePeriodKey(taskType: Short, instant: Instant): String {
+    fun generatePeriodKey(
+        taskType: Short,
+        instant: Instant,
+    ): String {
         val zdt: ZonedDateTime = instant.atZone(SHANGHAI_ZONE)
         return when (taskType) {
             TaskType.DAILY.value -> zdt.toLocalDate().toString() // "2026-03-19"
@@ -116,15 +127,16 @@ class TaskService(
         }
     }
 
-    private fun TaskWithProgressRow.toTaskItem(): TaskItem = TaskItem(
-        taskId = taskId,
-        taskCode = taskCode,
-        taskName = taskName,
-        taskType = taskType,
-        targetCount = targetCount,
-        rewardDiamonds = rewardDiamonds,
-        progressId = progressId,
-        currentCount = currentCount,
-        taskStatus = taskStatus,
-    )
+    private fun TaskWithProgressRow.toTaskItem(): TaskItem =
+        TaskItem(
+            taskId = taskId,
+            taskCode = taskCode,
+            taskName = taskName,
+            taskType = taskType,
+            targetCount = targetCount,
+            rewardDiamonds = rewardDiamonds,
+            progressId = progressId,
+            currentCount = currentCount,
+            taskStatus = taskStatus,
+        )
 }

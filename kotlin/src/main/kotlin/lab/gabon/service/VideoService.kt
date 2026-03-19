@@ -42,7 +42,6 @@ class VideoService(
     private val playRecordRepo: PlayRecordRepo,
     private val storageService: StorageService,
 ) {
-
     suspend fun presignUpload(
         customerId: Long,
         fileName: String,
@@ -81,15 +80,20 @@ class VideoService(
         page: Int,
         pageSize: Int,
         keyword: String? = null,
-    ): Pair<List<VideoListRow>, Long> =
-        videoRepo.listApproved(page, pageSize, keyword)
+    ): Pair<List<VideoListRow>, Long> = videoRepo.listApproved(page, pageSize, keyword)
 
-    suspend fun listFeatured(page: Int, pageSize: Int): Pair<List<VideoListRow>, Long> =
-        videoRepo.listFeatured(page, pageSize)
+    suspend fun listFeatured(
+        page: Int,
+        pageSize: Int,
+    ): Pair<List<VideoListRow>, Long> = videoRepo.listFeatured(page, pageSize)
 
-    suspend fun getDetail(videoId: Long, currentCustomerId: Long?): VideoDetail {
-        val video = videoRepo.findById(videoId)
-            ?: throw AppException(AppError.VideoNotFound())
+    suspend fun getDetail(
+        videoId: Long,
+        currentCustomerId: Long?,
+    ): VideoDetail {
+        val video =
+            videoRepo.findById(videoId)
+                ?: throw AppException(AppError.VideoNotFound())
 
         val isApproved = video.status == VideoStatus.APPROVED.value
         val isOwner = currentCustomerId != null && video.customerId == currentCustomerId
@@ -98,11 +102,12 @@ class VideoService(
             throw AppException(AppError.VideoNotApproved())
         }
 
-        val isLiked = if (currentCustomerId != null) {
-            videoRepo.isLikedBy(videoId, currentCustomerId)
-        } else {
-            false
-        }
+        val isLiked =
+            if (currentCustomerId != null) {
+                videoRepo.isLikedBy(videoId, currentCustomerId)
+            } else {
+                false
+            }
 
         return video.toDetail(isLiked)
     }
@@ -112,37 +117,49 @@ class VideoService(
         page: Int,
         pageSize: Int,
         status: Short? = null,
-    ): Pair<List<VideoListRow>, Long> =
-        videoRepo.listByCustomer(customerId, page, pageSize, status)
+    ): Pair<List<VideoListRow>, Long> = videoRepo.listByCustomer(customerId, page, pageSize, status)
 
     suspend fun listUserVideos(
         userId: Long,
         page: Int,
         pageSize: Int,
-    ): Pair<List<VideoListRow>, Long> =
-        videoRepo.listApprovedByUser(userId, page, pageSize)
+    ): Pair<List<VideoListRow>, Long> = videoRepo.listApprovedByUser(userId, page, pageSize)
 
-    suspend fun likeVideo(videoId: Long, customerId: Long) {
-        val video = videoRepo.findById(videoId)
-            ?: throw AppException(AppError.VideoNotFound())
+    suspend fun likeVideo(
+        videoId: Long,
+        customerId: Long,
+    ) {
+        val video =
+            videoRepo.findById(videoId)
+                ?: throw AppException(AppError.VideoNotFound())
         if (video.status != VideoStatus.APPROVED.value) {
             throw AppException(AppError.VideoNotApproved())
         }
         videoRepo.likeVideo(videoId, customerId)
     }
 
-    suspend fun unlikeVideo(videoId: Long, customerId: Long) {
+    suspend fun unlikeVideo(
+        videoId: Long,
+        customerId: Long,
+    ) {
         videoRepo.unlikeVideo(videoId, customerId)
     }
 
-    suspend fun deleteVideo(videoId: Long, customerId: Long) {
+    suspend fun deleteVideo(
+        videoId: Long,
+        customerId: Long,
+    ) {
         val deleted = videoRepo.softDelete(videoId, customerId)
         if (!deleted) {
             throw AppException(AppError.VideoNotFound())
         }
     }
 
-    suspend fun recordPlayClick(videoId: Long, customerId: Long?, ipAddress: String?) {
+    suspend fun recordPlayClick(
+        videoId: Long,
+        customerId: Long?,
+        ipAddress: String?,
+    ) {
         videoRepo.incrementTotalClicks(videoId)
         playRecordRepo.create(
             videoId = videoId,
@@ -152,7 +169,11 @@ class VideoService(
         )
     }
 
-    suspend fun recordValidPlay(videoId: Long, customerId: Long?, ipAddress: String?) {
+    suspend fun recordValidPlay(
+        videoId: Long,
+        customerId: Long?,
+        ipAddress: String?,
+    ) {
         videoRepo.incrementValidClicks(videoId)
         playRecordRepo.create(
             videoId = videoId,
@@ -162,24 +183,25 @@ class VideoService(
         )
     }
 
-    private fun VideoRow.toDetail(isLiked: Boolean): VideoDetail = VideoDetail(
-        id = id,
-        customerId = customerId,
-        title = title,
-        description = description,
-        fileName = fileName,
-        fileSize = fileSize,
-        fileUrl = fileUrl,
-        thumbnailUrl = thumbnailUrl,
-        mimeType = mimeType,
-        duration = duration,
-        status = status,
-        totalClicks = totalClicks,
-        validClicks = validClicks,
-        likeCount = likeCount,
-        createdAt = createdAt,
-        uploaderName = uploaderName,
-        uploaderAvatar = uploaderAvatar,
-        isLiked = isLiked,
-    )
+    private fun VideoRow.toDetail(isLiked: Boolean): VideoDetail =
+        VideoDetail(
+            id = id,
+            customerId = customerId,
+            title = title,
+            description = description,
+            fileName = fileName,
+            fileSize = fileSize,
+            fileUrl = fileUrl,
+            thumbnailUrl = thumbnailUrl,
+            mimeType = mimeType,
+            duration = duration,
+            status = status,
+            totalClicks = totalClicks,
+            validClicks = validClicks,
+            likeCount = likeCount,
+            createdAt = createdAt,
+            uploaderName = uploaderName,
+            uploaderAvatar = uploaderAvatar,
+            isLiked = isLiked,
+        )
 }

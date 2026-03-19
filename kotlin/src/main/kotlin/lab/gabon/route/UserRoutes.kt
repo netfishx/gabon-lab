@@ -1,10 +1,14 @@
 package lab.gabon.route
 
-import io.ktor.http.*
-import io.ktor.server.auth.*
-import io.ktor.server.request.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.auth.authenticate
+import io.ktor.server.request.receive
+import io.ktor.server.response.respond
+import io.ktor.server.routing.Route
+import io.ktor.server.routing.get
+import io.ktor.server.routing.post
+import io.ktor.server.routing.put
+import io.ktor.server.routing.route
 import kotlinx.serialization.Serializable
 import lab.gabon.model.JsonData
 import lab.gabon.plugin.customerPrincipal
@@ -70,24 +74,26 @@ fun Route.userRoutes(userService: UserService) {
             put("/profile") {
                 val principal = call.customerPrincipal()
                 val req = call.receive<UpdateProfileRequest>()
-                val profile = userService.updateProfile(
-                    customerId = principal.customerId,
-                    name = req.name,
-                    phone = req.phone,
-                    email = req.email,
-                    signature = req.signature,
-                )
+                val profile =
+                    userService.updateProfile(
+                        customerId = principal.customerId,
+                        name = req.name,
+                        phone = req.phone,
+                        email = req.email,
+                        signature = req.signature,
+                    )
                 call.respond(HttpStatusCode.OK, JsonData.ok(profile.toDto()))
             }
 
             post("/avatar/upload-url") {
                 val principal = call.customerPrincipal()
                 val req = call.receive<AvatarPresignRequest>()
-                val result = userService.presignAvatarUpload(
-                    customerId = principal.customerId,
-                    fileName = req.fileName,
-                    contentType = req.contentType,
-                )
+                val result =
+                    userService.presignAvatarUpload(
+                        customerId = principal.customerId,
+                        fileName = req.fileName,
+                        contentType = req.contentType,
+                    )
                 call.respond(HttpStatusCode.OK, JsonData.ok(result.toDto()))
             }
 
@@ -103,21 +109,23 @@ fun Route.userRoutes(userService: UserService) {
 
 // -- Extension mappers --
 
-private fun MyProfile.toDto(): MyProfileDto = MyProfileDto(
-    id = id,
-    username = username,
-    name = name,
-    phone = phone,
-    email = email,
-    avatarUrl = avatarUrl,
-    signature = signature,
-    isVip = isVip,
-    diamondBalance = diamondBalance,
-    lastLoginAt = lastLoginAt,
-    createdAt = createdAt,
-)
+private fun MyProfile.toDto(): MyProfileDto =
+    MyProfileDto(
+        id = id,
+        username = username,
+        name = name,
+        phone = phone,
+        email = email,
+        avatarUrl = avatarUrl,
+        signature = signature,
+        isVip = isVip,
+        diamondBalance = diamondBalance,
+        lastLoginAt = lastLoginAt,
+        createdAt = createdAt,
+    )
 
-private fun AvatarPresignResult.toDto(): AvatarPresignDto = AvatarPresignDto(
-    uploadUrl = uploadUrl,
-    avatarUrl = avatarUrl,
-)
+private fun AvatarPresignResult.toDto(): AvatarPresignDto =
+    AvatarPresignDto(
+        uploadUrl = uploadUrl,
+        avatarUrl = avatarUrl,
+    )

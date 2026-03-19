@@ -12,23 +12,34 @@ import java.time.format.DateTimeParseException
 class ReportService(
     private val reportRepo: ReportRepo,
 ) {
-
-    suspend fun revenueReport(startDate: String, endDate: String): List<RevenueReportRow> {
+    suspend fun revenueReport(
+        startDate: String,
+        endDate: String,
+    ): List<RevenueReportRow> {
         validateDateRange(startDate, endDate)
         return reportRepo.revenueReport(startDate, endDate)
     }
 
-    suspend fun videoDailyReport(startDate: String, endDate: String): List<VideoDailyReportRow> {
+    suspend fun videoDailyReport(
+        startDate: String,
+        endDate: String,
+    ): List<VideoDailyReportRow> {
         validateDateRange(startDate, endDate)
         return reportRepo.videoDailyReport(startDate, endDate)
     }
 
-    suspend fun videoSummaryReport(startDate: String, endDate: String): VideoSummaryReportRow {
+    suspend fun videoSummaryReport(
+        startDate: String,
+        endDate: String,
+    ): VideoSummaryReportRow {
         validateDateRange(startDate, endDate)
         return reportRepo.videoSummaryReport(startDate, endDate)
     }
 
-    private fun validateDateRange(startDate: String, endDate: String) {
+    private fun validateDateRange(
+        startDate: String,
+        endDate: String,
+    ) {
         val start = parseDate(startDate, "start_date")
         val end = parseDate(endDate, "end_date")
         if (start.isAfter(end)) {
@@ -36,11 +47,13 @@ class ReportService(
         }
     }
 
-    private fun parseDate(value: String, paramName: String): LocalDate {
-        return try {
+    private fun parseDate(
+        value: String,
+        paramName: String,
+    ): LocalDate =
+        try {
             LocalDate.parse(value)
         } catch (_: DateTimeParseException) {
             throw AppException(AppError.BadRequest("invalid $paramName format, expected yyyy-MM-dd"))
         }
-    }
 }

@@ -28,8 +28,10 @@ class AuthService(
     private val jwtService: JwtService,
     private val tokenStore: RedisTokenStore,
 ) {
-
-    suspend fun register(username: String, password: String): TokenResponse {
+    suspend fun register(
+        username: String,
+        password: String,
+    ): TokenResponse {
         validateInput(username, password)
 
         val existing = customerRepo.findByUsername(username)
@@ -51,9 +53,13 @@ class AuthService(
         return TokenResponse(tokenPair.accessToken, tokenPair.refreshToken)
     }
 
-    suspend fun login(username: String, password: String): TokenResponse {
-        val customer = customerRepo.findByUsername(username)
-            ?: throw AppException(AppError.InvalidCredentials())
+    suspend fun login(
+        username: String,
+        password: String,
+    ): TokenResponse {
+        val customer =
+            customerRepo.findByUsername(username)
+                ?: throw AppException(AppError.InvalidCredentials())
 
         if (!verifyPassword(password, customer.passwordHash)) {
             throw AppException(AppError.InvalidCredentials())
@@ -82,11 +88,12 @@ class AuthService(
         // Generate new token pair first, then atomically CAS the family
         val newTokenPair = jwtService.generateCustomerTokens(claims.userId)
 
-        val casResult = tokenStore.casFamily(
-            familyId = claims.familyId,
-            expectedJti = claims.jti,
-            newJti = newTokenPair.refreshJti,
-        )
+        val casResult =
+            tokenStore.casFamily(
+                familyId = claims.familyId,
+                expectedJti = claims.jti,
+                newJti = newTokenPair.refreshJti,
+            )
 
         return when (casResult) {
             is CasResult.Success ->
@@ -98,15 +105,25 @@ class AuthService(
         }
     }
 
-    suspend fun logout(customerId: Long, jti: String, familyId: String) {
+    @Suppress("UnusedParameter")
+    suspend fun logout(
+        customerId: Long,
+        jti: String,
+        familyId: String,
+    ) {
         val remainingSeconds = jwtService.config.customerAccessTtl.inWholeSeconds
         tokenStore.setBlacklist(jti, remainingSeconds)
         tokenStore.deleteFamily(familyId)
     }
 
-    suspend fun changePassword(customerId: Long, oldPassword: String, newPassword: String) {
-        val customer = customerRepo.findById(customerId)
-            ?: throw AppException(AppError.NotFound("customer not found"))
+    suspend fun changePassword(
+        customerId: Long,
+        oldPassword: String,
+        newPassword: String,
+    ) {
+        val customer =
+            customerRepo.findById(customerId)
+                ?: throw AppException(AppError.NotFound("customer not found"))
 
         if (!verifyPassword(oldPassword, customer.passwordHash)) {
             throw AppException(AppError.PasswordMismatch())
@@ -117,40 +134,51 @@ class AuthService(
     }
 
     suspend fun getMe(customerId: Long): CustomerProfile {
-        val customer = customerRepo.findById(customerId)
-            ?: throw AppException(AppError.NotFound("customer not found"))
+        val customer =
+            customerRepo.findById(customerId)
+                ?: throw AppException(AppError.NotFound("customer not found"))
 
         return customer.toProfile()
     }
 
-    private fun validateInput(username: String, password: String) {
-        if (username.length < 3) {
-            throw AppException(AppError.BadRequest("username must be at least 3 characters"))
+    private fun validateInput(
+        username: String,
+        password: String,
+    ) {
+        if (username.length < MIN_USERNAME_LENGTH) {
+            throw AppException(AppError.BadRequest("username must be at least $MIN_USERNAME_LENGTH characters"))
         }
-        if (password.length < 6) {
-            throw AppException(AppError.BadRequest("password must be at least 6 characters"))
+        if (password.length < MIN_PASSWORD_LENGTH) {
+            throw AppException(AppError.BadRequest("password must be at least $MIN_PASSWORD_LENGTH characters"))
         }
     }
 
     private fun hashPassword(password: String): String =
-        BCrypt.withDefaults().hashToString(BCRYPT_COST, password.toCharArray())
+        BCrypt
+            .withDefaults()
+            .hashToString(BCRYPT_COST, password.toCharArray())
 
-    private fun verifyPassword(password: String, hash: String): Boolean =
-        BCrypt.verifyer().verify(password.toCharArray(), hash).verified
+    private fun verifyPassword(
+        password: String,
+        hash: String,
+    ): Boolean = BCrypt.verifyer().verify(password.toCharArray(), hash).verified
 
-    private fun CustomerRow.toProfile(): CustomerProfile = CustomerProfile(
-        id = id,
-        username = username,
-        name = name,
-        phone = phone,
-        email = email,
-        avatarUrl = avatarUrl,
-        signature = signature,
-        isVip = isVip,
-        diamondBalance = diamondBalance,
-    )
+    private fun CustomerRow.toProfile(): CustomerProfile =
+        CustomerProfile(
+            id = id,
+            username = username,
+            name = name,
+            phone = phone,
+            email = email,
+            avatarUrl = avatarUrl,
+            signature = signature,
+            isVip = isVip,
+            diamondBalance = diamondBalance,
+        )
 
     companion object {
         private const val BCRYPT_COST = 10
+        private const val MIN_USERNAME_LENGTH = 3
+        private const val MIN_PASSWORD_LENGTH = 6
     }
 }

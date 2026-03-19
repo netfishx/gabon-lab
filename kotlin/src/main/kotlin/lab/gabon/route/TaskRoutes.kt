@@ -1,9 +1,11 @@
 package lab.gabon.route
 
-import io.ktor.http.*
-import io.ktor.server.auth.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.auth.authenticate
+import io.ktor.server.response.respond
+import io.ktor.server.routing.Route
+import io.ktor.server.routing.get
+import io.ktor.server.routing.post
 import kotlinx.serialization.Serializable
 import lab.gabon.model.JsonData
 import lab.gabon.plugin.customerPrincipal
@@ -44,18 +46,20 @@ fun Route.taskRoutes(taskService: TaskService) {
             val taskType = call.queryParameters["task_type"]?.toShortOrNull()
             val taskStatus = call.queryParameters["task_status"]?.toShortOrNull()
 
-            val items = taskService.listTasks(
-                customerId = principal.customerId,
-                taskType = taskType,
-                taskStatus = taskStatus,
-            )
+            val items =
+                taskService.listTasks(
+                    customerId = principal.customerId,
+                    taskType = taskType,
+                    taskStatus = taskStatus,
+                )
             call.respond(HttpStatusCode.OK, JsonData.ok(items.map { it.toDto() }))
         }
 
         post("/tasks/{progressId}/claim") {
             val principal = call.customerPrincipal()
-            val progressId = call.pathParameters["progressId"]?.toLongOrNull()
-                ?: return@post call.respond(HttpStatusCode.BadRequest, JsonData.error(400, "invalid progress id"))
+            val progressId =
+                call.pathParameters["progressId"]?.toLongOrNull()
+                    ?: return@post call.respond(HttpStatusCode.BadRequest, JsonData.error(400, "invalid progress id"))
 
             val diamonds = taskService.claimReward(principal.customerId, progressId)
             call.respond(HttpStatusCode.OK, JsonData.ok(ClaimResultDto(diamonds = diamonds)))
@@ -71,14 +75,15 @@ fun Route.taskRoutes(taskService: TaskService) {
 
 // -- Extension mappers --
 
-private fun TaskItem.toDto(): TaskItemDto = TaskItemDto(
-    taskId = taskId,
-    taskCode = taskCode,
-    taskName = taskName,
-    taskType = taskType,
-    targetCount = targetCount,
-    rewardDiamonds = rewardDiamonds,
-    progressId = progressId,
-    currentCount = currentCount,
-    taskStatus = taskStatus,
-)
+private fun TaskItem.toDto(): TaskItemDto =
+    TaskItemDto(
+        taskId = taskId,
+        taskCode = taskCode,
+        taskName = taskName,
+        taskType = taskType,
+        targetCount = targetCount,
+        rewardDiamonds = rewardDiamonds,
+        progressId = progressId,
+        currentCount = currentCount,
+        taskStatus = taskStatus,
+    )

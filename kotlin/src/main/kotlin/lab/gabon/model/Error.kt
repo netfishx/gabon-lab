@@ -1,6 +1,6 @@
 package lab.gabon.model
 
-import io.ktor.http.*
+import io.ktor.http.HttpStatusCode
 
 /**
  * Sealed error hierarchy mirroring Go's ErrorCode + AppError pattern.
@@ -146,4 +146,6 @@ sealed interface AppError {
 }
 
 /** Throwable wrapper so AppError can be thrown through Ktor's pipeline. */
-class AppException(val error: AppError) : RuntimeException(error.message)
+class AppException(
+    val error: AppError,
+) : RuntimeException(error.message)

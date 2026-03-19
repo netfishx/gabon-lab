@@ -2,6 +2,8 @@ plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.shadow)
+    alias(libs.plugins.ktlint)
+    alias(libs.plugins.detekt)
     application
 }
 
@@ -14,12 +16,13 @@ version = "0.1.0"
 
 application {
     mainClass.set("lab.gabon.ApplicationKt")
-    applicationDefaultJvmArgs = listOf(
-        "-XX:+UseZGC",
-        "-XX:+ZGenerational",
-        "-Xmx512m",
-        "-Xms256m",
-    )
+    applicationDefaultJvmArgs =
+        listOf(
+            "-XX:+UseZGC",
+            "-XX:+ZGenerational",
+            "-Xmx512m",
+            "-Xms256m",
+        )
 }
 
 kotlin {
@@ -81,4 +84,14 @@ dependencies {
 tasks.shadowJar {
     archiveFileName.set("gabon-api.jar")
     mergeServiceFiles()
+}
+
+ktlint {
+    version.set("1.6.0")
+}
+
+detekt {
+    buildUponDefaultConfig = true
+    parallel = true
+    config.setFrom(files("detekt.yml"))
 }

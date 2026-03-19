@@ -21,47 +21,53 @@ data class SignInRecordRow(
 )
 
 class SignInRepo {
+    suspend fun signIn(
+        customerId: Long,
+        periodKey: String,
+        diamonds: Int,
+    ): SignInRecordRow =
+        dbQuery {
+            val result =
+                CustomerSignInRecords.insertIgnore {
+                    it[CustomerSignInRecords.customerId] = customerId
+                    it[CustomerSignInRecords.periodKey] = periodKey
+                    it[CustomerSignInRecords.rewardDiamonds] = diamonds
+                }
 
-    suspend fun signIn(customerId: Long, periodKey: String, diamonds: Int): SignInRecordRow = dbQuery {
-        val result = CustomerSignInRecords.insertIgnore {
-            it[CustomerSignInRecords.customerId] = customerId
-            it[CustomerSignInRecords.periodKey] = periodKey
-            it[CustomerSignInRecords.rewardDiamonds] = diamonds
-        }
-
-        if (result.insertedCount == 0) {
-            throw AppException(AppError.AlreadySignedIn())
-        }
-
-        // Credit diamonds
-        val creditSql = """
-            UPDATE customers SET diamond_balance = diamond_balance + ?, updated_at = NOW() WHERE id = ?
-        """.trimIndent()
-        val jdbcConn = TransactionManager.current().connection.connection as java.sql.Connection
-        jdbcConn.prepareStatement(creditSql).use { stmt ->
-            stmt.setInt(1, diamonds)
-            stmt.setLong(2, customerId)
-            stmt.executeUpdate()
-        }
-
-        // Return the record
-        CustomerSignInRecords.selectAll()
-            .where {
-                (CustomerSignInRecords.customerId eq customerId) and
-                    (CustomerSignInRecords.periodKey eq periodKey)
+            if (result.insertedCount == 0) {
+                throw AppException(AppError.AlreadySignedIn())
             }
-            .single()
-            .toSignInRecordRow()
-    }
 
-    private fun ResultRow.toSignInRecordRow(): SignInRecordRow = SignInRecordRow(
-        id = this[CustomerSignInRecords.id].value,
-        customerId = this[CustomerSignInRecords.customerId].value,
-        periodKey = this[CustomerSignInRecords.periodKey],
-        rewardDiamonds = this[CustomerSignInRecords.rewardDiamonds],
-        createdAt = this[CustomerSignInRecords.createdAt].toKotlinInstant(),
-    )
+            // Credit diamonds
+            val creditSql =
+                """
+                UPDATE customers SET diamond_balance = diamond_balance + ?, updated_at = NOW() WHERE id = ?
+                """.trimIndent()
+            val jdbcConn = TransactionManager.current().connection.connection as java.sql.Connection
+            jdbcConn.prepareStatement(creditSql).use { stmt ->
+                stmt.setInt(1, diamonds)
+                stmt.setLong(2, customerId)
+                stmt.executeUpdate()
+            }
 
-    private fun OffsetDateTime.toKotlinInstant(): Instant =
-        Instant.fromEpochSeconds(toEpochSecond(), nano)
+            // Return the record
+            CustomerSignInRecords
+                .selectAll()
+                .where {
+                    (CustomerSignInRecords.customerId eq customerId) and
+                        (CustomerSignInRecords.periodKey eq periodKey)
+                }.single()
+                .toSignInRecordRow()
+        }
+
+    private fun ResultRow.toSignInRecordRow(): SignInRecordRow =
+        SignInRecordRow(
+            id = this[CustomerSignInRecords.id].value,
+            customerId = this[CustomerSignInRecords.customerId].value,
+            periodKey = this[CustomerSignInRecords.periodKey],
+            rewardDiamonds = this[CustomerSignInRecords.rewardDiamonds],
+            createdAt = this[CustomerSignInRecords.createdAt].toKotlinInstant(),
+        )
+
+    private fun OffsetDateTime.toKotlinInstant(): Instant = Instant.fromEpochSeconds(toEpochSecond(), nano)
 }

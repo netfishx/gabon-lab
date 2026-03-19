@@ -2,11 +2,14 @@ package lab.gabon.plugin
 
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
-import io.ktor.http.*
-import io.ktor.server.application.*
-import io.ktor.server.auth.*
-import io.ktor.server.auth.jwt.*
-import io.ktor.server.response.*
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.Application
+import io.ktor.server.application.ApplicationCall
+import io.ktor.server.application.install
+import io.ktor.server.auth.Authentication
+import io.ktor.server.auth.jwt.jwt
+import io.ktor.server.auth.principal
+import io.ktor.server.response.respond
 import lab.gabon.model.AppError
 import lab.gabon.model.AppException
 import lab.gabon.model.JsonData
@@ -26,17 +29,21 @@ data class AdminPrincipal(
     val familyId: String,
 )
 
-fun Application.configureAuthentication(jwtService: JwtService, tokenStore: RedisTokenStore) {
+fun Application.configureAuthentication(
+    jwtService: JwtService,
+    tokenStore: RedisTokenStore,
+) {
     val config = jwtService.config
 
     install(Authentication) {
         jwt("customer") {
             realm = "gabon-customer"
             verifier(
-                JWT.require(Algorithm.HMAC256(config.customerSecret))
+                JWT
+                    .require(Algorithm.HMAC256(config.customerSecret))
                     .withIssuer(JwtService.CUSTOMER_ISSUER)
                     .withAudience(JwtService.CUSTOMER_AUDIENCE)
-                    .build()
+                    .build(),
             )
             validate { credential ->
                 val payload = credential.payload
@@ -62,10 +69,11 @@ fun Application.configureAuthentication(jwtService: JwtService, tokenStore: Redi
         jwt("admin") {
             realm = "gabon-admin"
             verifier(
-                JWT.require(Algorithm.HMAC256(config.adminSecret))
+                JWT
+                    .require(Algorithm.HMAC256(config.adminSecret))
                     .withIssuer(JwtService.ADMIN_ISSUER)
                     .withAudience(JwtService.ADMIN_AUDIENCE)
-                    .build()
+                    .build(),
             )
             validate { credential ->
                 val payload = credential.payload

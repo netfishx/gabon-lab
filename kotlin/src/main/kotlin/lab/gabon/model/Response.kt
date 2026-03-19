@@ -15,10 +15,16 @@ data class JsonData<T>(
         fun ok(): JsonData<Unit> = JsonData(code = 0, message = "ok", data = null)
 
         fun error(error: AppError): JsonData<Nothing?> =
-            JsonData(code = error.statusCode, message = error.message, data = null)
+            JsonData(
+                code = error.statusCode,
+                message = error.message,
+                data = null,
+            )
 
-        fun error(code: Int, message: String): JsonData<Nothing?> =
-            JsonData(code = code, message = message, data = null)
+        fun error(
+            code: Int,
+            message: String,
+        ): JsonData<Nothing?> = JsonData(code = code, message = message, data = null)
     }
 }
 

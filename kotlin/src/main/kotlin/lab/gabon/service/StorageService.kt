@@ -11,24 +11,27 @@ import org.slf4j.LoggerFactory
 import java.util.UUID
 import kotlin.time.Duration.Companion.minutes
 
-class StorageService(private val config: S3Config) {
-
+class StorageService(
+    private val config: S3Config,
+) {
     private val logger = LoggerFactory.getLogger(StorageService::class.java)
 
-    private val s3Client: S3Client? = if (config.endpoint.isBlank()) {
-        logger.info("S3 endpoint is blank — running in stub mode")
-        null
-    } else {
-        S3Client {
-            endpointUrl = Url.parse(config.endpoint)
-            region = config.region
-            forcePathStyle = true
-            credentialsProvider = StaticCredentialsProvider {
-                accessKeyId = config.accessKey
-                secretAccessKey = config.secretKey
+    private val s3Client: S3Client? =
+        if (config.endpoint.isBlank()) {
+            logger.info("S3 endpoint is blank — running in stub mode")
+            null
+        } else {
+            S3Client {
+                endpointUrl = Url.parse(config.endpoint)
+                region = config.region
+                forcePathStyle = true
+                credentialsProvider =
+                    StaticCredentialsProvider {
+                        accessKeyId = config.accessKey
+                        secretAccessKey = config.secretKey
+                    }
             }
         }
-    }
 
     suspend fun presignUpload(
         bucket: String,
@@ -36,24 +39,32 @@ class StorageService(private val config: S3Config) {
         contentType: String,
         expireMinutes: Int = 15,
     ): String {
-        val client = s3Client
-            ?: return "https://stub.local/$bucket/$key?upload=true"
+        val client =
+            s3Client
+                ?: return "https://stub.local/$bucket/$key?upload=true"
 
-        val request = PutObjectRequest {
-            this.bucket = bucket
-            this.key = key
-            this.contentType = contentType
-        }
+        val request =
+            PutObjectRequest {
+                this.bucket = bucket
+                this.key = key
+                this.contentType = contentType
+            }
         val presigned = client.presignPutObject(request, expireMinutes.minutes)
         return presigned.url.toString()
     }
 
-    fun buildPublicUrl(bucket: String, key: String): String {
+    fun buildPublicUrl(
+        bucket: String,
+        key: String,
+    ): String {
         if (s3Client == null) return "https://stub.local/$bucket/$key"
         return "${config.endpoint.trimEnd('/')}/$bucket/$key"
     }
 
-    suspend fun delete(bucket: String, key: String) {
+    suspend fun delete(
+        bucket: String,
+        key: String,
+    ) {
         val client = s3Client ?: return
         client.deleteObject {
             this.bucket = bucket
@@ -61,7 +72,11 @@ class StorageService(private val config: S3Config) {
         }
     }
 
-    fun generateKey(prefix: String, customerId: Long, fileName: String): String {
+    fun generateKey(
+        prefix: String,
+        customerId: Long,
+        fileName: String,
+    ): String {
         val ext = fileName.substringAfterLast('.', "bin")
         return "$prefix/$customerId/${UUID.randomUUID()}.$ext"
     }

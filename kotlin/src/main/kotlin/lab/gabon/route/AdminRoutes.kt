@@ -1,10 +1,15 @@
 package lab.gabon.route
 
-import io.ktor.http.*
-import io.ktor.server.auth.*
-import io.ktor.server.request.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.auth.authenticate
+import io.ktor.server.request.receive
+import io.ktor.server.response.respond
+import io.ktor.server.routing.Route
+import io.ktor.server.routing.delete
+import io.ktor.server.routing.get
+import io.ktor.server.routing.post
+import io.ktor.server.routing.put
+import io.ktor.server.routing.route
 import kotlinx.serialization.Serializable
 import lab.gabon.model.JsonData
 import lab.gabon.model.Paginated
@@ -148,7 +153,10 @@ data class CustomerListDto(
 
 // ── Route Registration ──────────────────────────────────────
 
-fun Route.adminRoutes(adminService: AdminService, reportService: ReportService? = null) {
+fun Route.adminRoutes(
+    adminService: AdminService,
+    reportService: ReportService? = null,
+) {
     route("/admin/v1") {
         // ── Public admin auth routes ──────────────────────
         route("/auth") {
@@ -193,9 +201,16 @@ fun Route.adminRoutes(adminService: AdminService, reportService: ReportService? 
                     val endDate = call.queryParameters["end_date"]
                     val isVip = call.queryParameters["is_vip"]?.toBooleanStrictOrNull()
 
-                    val (items, total) = adminService.listVideosAdmin(
-                        page, pageSize, status, authorName, startDate, endDate, isVip,
-                    )
+                    val (items, total) =
+                        adminService.listVideosAdmin(
+                            page,
+                            pageSize,
+                            status,
+                            authorName,
+                            startDate,
+                            endDate,
+                            isVip,
+                        )
                     call.respond(
                         HttpStatusCode.OK,
                         JsonData.ok(Paginated(items.map { it.toDto() }, total, page, pageSize)),
@@ -203,11 +218,12 @@ fun Route.adminRoutes(adminService: AdminService, reportService: ReportService? 
                 }
 
                 get("/{id}") {
-                    val videoId = call.pathParameters["id"]?.toLongOrNull()
-                        ?: return@get call.respond(
-                            HttpStatusCode.BadRequest,
-                            JsonData.error(400, "invalid video id"),
-                        )
+                    val videoId =
+                        call.pathParameters["id"]?.toLongOrNull()
+                            ?: return@get call.respond(
+                                HttpStatusCode.BadRequest,
+                                JsonData.error(400, "invalid video id"),
+                            )
 
                     val detail = adminService.getVideoDetailAdmin(videoId)
                     call.respond(HttpStatusCode.OK, JsonData.ok(detail.toDto()))
@@ -215,11 +231,12 @@ fun Route.adminRoutes(adminService: AdminService, reportService: ReportService? 
 
                 post("/{id}/review") {
                     val principal = call.adminPrincipal()
-                    val videoId = call.pathParameters["id"]?.toLongOrNull()
-                        ?: return@post call.respond(
-                            HttpStatusCode.BadRequest,
-                            JsonData.error(400, "invalid video id"),
-                        )
+                    val videoId =
+                        call.pathParameters["id"]?.toLongOrNull()
+                            ?: return@post call.respond(
+                                HttpStatusCode.BadRequest,
+                                JsonData.error(400, "invalid video id"),
+                            )
 
                     val req = call.receive<ReviewVideoRequest>()
                     adminService.reviewVideo(videoId, principal.adminId, req.status, req.reviewNotes)
@@ -227,11 +244,12 @@ fun Route.adminRoutes(adminService: AdminService, reportService: ReportService? 
                 }
 
                 delete("/{id}") {
-                    val videoId = call.pathParameters["id"]?.toLongOrNull()
-                        ?: return@delete call.respond(
-                            HttpStatusCode.BadRequest,
-                            JsonData.error(400, "invalid video id"),
-                        )
+                    val videoId =
+                        call.pathParameters["id"]?.toLongOrNull()
+                            ?: return@delete call.respond(
+                                HttpStatusCode.BadRequest,
+                                JsonData.error(400, "invalid video id"),
+                            )
 
                     adminService.adminDeleteVideo(videoId)
                     call.respond(HttpStatusCode.OK, JsonData.ok("deleted"))
@@ -257,22 +275,24 @@ fun Route.adminRoutes(adminService: AdminService, reportService: ReportService? 
                 post {
                     val principal = call.adminPrincipal()
                     val req = call.receive<CreateAdminRequest>()
-                    val id = adminService.createAdmin(
-                        currentRole = principal.role,
-                        username = req.username,
-                        password = req.password,
-                        role = req.role,
-                        fullName = req.fullName,
-                    )
+                    val id =
+                        adminService.createAdmin(
+                            currentRole = principal.role,
+                            username = req.username,
+                            password = req.password,
+                            role = req.role,
+                            fullName = req.fullName,
+                        )
                     call.respond(HttpStatusCode.Created, JsonData.ok(mapOf("id" to id)))
                 }
 
                 get("/{id}") {
-                    val adminId = call.pathParameters["id"]?.toLongOrNull()
-                        ?: return@get call.respond(
-                            HttpStatusCode.BadRequest,
-                            JsonData.error(400, "invalid admin id"),
-                        )
+                    val adminId =
+                        call.pathParameters["id"]?.toLongOrNull()
+                            ?: return@get call.respond(
+                                HttpStatusCode.BadRequest,
+                                JsonData.error(400, "invalid admin id"),
+                            )
 
                     val admin = adminService.getAdmin(adminId)
                     call.respond(HttpStatusCode.OK, JsonData.ok(admin.toDto()))
@@ -280,11 +300,12 @@ fun Route.adminRoutes(adminService: AdminService, reportService: ReportService? 
 
                 put("/{id}") {
                     val principal = call.adminPrincipal()
-                    val targetId = call.pathParameters["id"]?.toLongOrNull()
-                        ?: return@put call.respond(
-                            HttpStatusCode.BadRequest,
-                            JsonData.error(400, "invalid admin id"),
-                        )
+                    val targetId =
+                        call.pathParameters["id"]?.toLongOrNull()
+                            ?: return@put call.respond(
+                                HttpStatusCode.BadRequest,
+                                JsonData.error(400, "invalid admin id"),
+                            )
 
                     val req = call.receive<UpdateAdminRequest>()
                     adminService.updateAdmin(
@@ -300,11 +321,12 @@ fun Route.adminRoutes(adminService: AdminService, reportService: ReportService? 
 
                 delete("/{id}") {
                     val principal = call.adminPrincipal()
-                    val targetId = call.pathParameters["id"]?.toLongOrNull()
-                        ?: return@delete call.respond(
-                            HttpStatusCode.BadRequest,
-                            JsonData.error(400, "invalid admin id"),
-                        )
+                    val targetId =
+                        call.pathParameters["id"]?.toLongOrNull()
+                            ?: return@delete call.respond(
+                                HttpStatusCode.BadRequest,
+                                JsonData.error(400, "invalid admin id"),
+                            )
 
                     adminService.deleteAdmin(principal.role, principal.adminId, targetId)
                     call.respond(HttpStatusCode.OK, JsonData.ok("deleted"))
@@ -312,11 +334,12 @@ fun Route.adminRoutes(adminService: AdminService, reportService: ReportService? 
 
                 put("/{id}/password") {
                     val principal = call.adminPrincipal()
-                    val targetId = call.pathParameters["id"]?.toLongOrNull()
-                        ?: return@put call.respond(
-                            HttpStatusCode.BadRequest,
-                            JsonData.error(400, "invalid admin id"),
-                        )
+                    val targetId =
+                        call.pathParameters["id"]?.toLongOrNull()
+                            ?: return@put call.respond(
+                                HttpStatusCode.BadRequest,
+                                JsonData.error(400, "invalid admin id"),
+                            )
 
                     val req = call.receive<AdminChangePasswordRequest>()
                     adminService.changeAdminPassword(
@@ -345,11 +368,12 @@ fun Route.adminRoutes(adminService: AdminService, reportService: ReportService? 
                 }
 
                 put("/{id}/password") {
-                    val customerId = call.pathParameters["id"]?.toLongOrNull()
-                        ?: return@put call.respond(
-                            HttpStatusCode.BadRequest,
-                            JsonData.error(400, "invalid customer id"),
-                        )
+                    val customerId =
+                        call.pathParameters["id"]?.toLongOrNull()
+                            ?: return@put call.respond(
+                                HttpStatusCode.BadRequest,
+                                JsonData.error(400, "invalid customer id"),
+                            )
 
                     val req = call.receive<ResetCustomerPasswordRequest>()
                     adminService.resetCustomerPassword(customerId, req.newPassword)
@@ -367,79 +391,84 @@ fun Route.adminRoutes(adminService: AdminService, reportService: ReportService? 
 
 // ── Extension mappers ───────────────────────────────────────
 
-private fun TokenResponse.toAdminDto(): AdminTokenResponseDto = AdminTokenResponseDto(
-    accessToken = accessToken,
-    refreshToken = refreshToken,
-)
+private fun TokenResponse.toAdminDto(): AdminTokenResponseDto =
+    AdminTokenResponseDto(
+        accessToken = accessToken,
+        refreshToken = refreshToken,
+    )
 
-private fun AdminUserRow.toDto(): AdminUserDto = AdminUserDto(
-    id = id,
-    username = username,
-    role = role,
-    fullName = fullName,
-    phone = phone,
-    avatarUrl = avatarUrl,
-    status = status,
-    lastLoginAt = lastLoginAt?.toString(),
-    createdAt = createdAt.toString(),
-)
+private fun AdminUserRow.toDto(): AdminUserDto =
+    AdminUserDto(
+        id = id,
+        username = username,
+        role = role,
+        fullName = fullName,
+        phone = phone,
+        avatarUrl = avatarUrl,
+        status = status,
+        lastLoginAt = lastLoginAt?.toString(),
+        createdAt = createdAt.toString(),
+    )
 
-private fun AdminVideoListRow.toDto(): AdminVideoListItemDto = AdminVideoListItemDto(
-    id = id,
-    customerId = customerId,
-    title = title,
-    fileName = fileName,
-    fileUrl = fileUrl,
-    thumbnailUrl = thumbnailUrl,
-    mimeType = mimeType,
-    status = status,
-    reviewNotes = reviewNotes,
-    reviewedBy = reviewedBy,
-    totalClicks = totalClicks,
-    validClicks = validClicks,
-    likeCount = likeCount,
-    createdAt = createdAt.toString(),
-    authorName = authorName,
-    authorAvatar = authorAvatar,
-    authorIsVip = authorIsVip,
-)
+private fun AdminVideoListRow.toDto(): AdminVideoListItemDto =
+    AdminVideoListItemDto(
+        id = id,
+        customerId = customerId,
+        title = title,
+        fileName = fileName,
+        fileUrl = fileUrl,
+        thumbnailUrl = thumbnailUrl,
+        mimeType = mimeType,
+        status = status,
+        reviewNotes = reviewNotes,
+        reviewedBy = reviewedBy,
+        totalClicks = totalClicks,
+        validClicks = validClicks,
+        likeCount = likeCount,
+        createdAt = createdAt.toString(),
+        authorName = authorName,
+        authorAvatar = authorAvatar,
+        authorIsVip = authorIsVip,
+    )
 
-private fun AdminVideoRow.toDto(): AdminVideoDetailDto = AdminVideoDetailDto(
-    id = id,
-    customerId = customerId,
-    title = title,
-    description = description,
-    fileName = fileName,
-    fileSize = fileSize,
-    fileUrl = fileUrl,
-    thumbnailUrl = thumbnailUrl,
-    previewGifUrl = previewGifUrl,
-    mimeType = mimeType,
-    duration = duration,
-    width = width,
-    height = height,
-    status = status,
-    reviewNotes = reviewNotes,
-    reviewedBy = reviewedBy,
-    reviewedAt = reviewedAt?.toString(),
-    totalClicks = totalClicks,
-    validClicks = validClicks,
-    likeCount = likeCount,
-    createdAt = createdAt.toString(),
-    updatedAt = updatedAt.toString(),
-    authorName = authorName,
-    authorAvatar = authorAvatar,
-    authorIsVip = authorIsVip,
-)
+private fun AdminVideoRow.toDto(): AdminVideoDetailDto =
+    AdminVideoDetailDto(
+        id = id,
+        customerId = customerId,
+        title = title,
+        description = description,
+        fileName = fileName,
+        fileSize = fileSize,
+        fileUrl = fileUrl,
+        thumbnailUrl = thumbnailUrl,
+        previewGifUrl = previewGifUrl,
+        mimeType = mimeType,
+        duration = duration,
+        width = width,
+        height = height,
+        status = status,
+        reviewNotes = reviewNotes,
+        reviewedBy = reviewedBy,
+        reviewedAt = reviewedAt?.toString(),
+        totalClicks = totalClicks,
+        validClicks = validClicks,
+        likeCount = likeCount,
+        createdAt = createdAt.toString(),
+        updatedAt = updatedAt.toString(),
+        authorName = authorName,
+        authorAvatar = authorAvatar,
+        authorIsVip = authorIsVip,
+    )
 
-private fun CustomerRow.toCustomerListDto(): CustomerListDto = CustomerListDto(
-    id = id,
-    username = username,
-    name = name,
-    phone = phone,
-    email = email,
-    avatarUrl = avatarUrl,
-    isVip = isVip,
-    diamondBalance = diamondBalance,
-    createdAt = createdAt.toString(),
-)
+private fun CustomerRow.toCustomerListDto(): CustomerListDto =
+    CustomerListDto(
+        id = id,
+        username = username,
+        name = name,
+        phone = phone,
+        email = email,
+        avatarUrl = avatarUrl,
+        isVip = isVip,
+        diamondBalance = diamondBalance,
+        createdAt = createdAt.toString(),
+    )

@@ -1,9 +1,11 @@
 package lab.gabon.plugin
 
-import io.ktor.http.*
-import io.ktor.server.application.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.Application
+import io.ktor.server.response.respond
+import io.ktor.server.routing.get
+import io.ktor.server.routing.route
+import io.ktor.server.routing.routing
 import lab.gabon.model.JsonData
 import lab.gabon.repository.CustomerRepo
 import lab.gabon.route.adminRoutes
@@ -20,6 +22,11 @@ import lab.gabon.service.SocialService
 import lab.gabon.service.TaskService
 import lab.gabon.service.UserService
 import lab.gabon.service.VideoService
+
+private const val AUTH_RATE_LIMIT = 20
+private const val PUBLIC_RATE_LIMIT = 120
+private const val USER_RATE_LIMIT = 200
+private const val ADMIN_RATE_LIMIT = 200
 
 fun Application.configureRouting(
     authService: AuthService,
@@ -40,12 +47,12 @@ fun Application.configureRouting(
         route("/api/v1") {
             if (rateLimiter != null) {
                 // Auth routes: 20/min by IP
-                rateLimit(rateLimiter, RateLimitConfig("auth", 20, keyType = KeyType.IP)) {
+                rateLimit(rateLimiter, RateLimitConfig("auth", AUTH_RATE_LIMIT, keyType = KeyType.IP)) {
                     authRoutes(authService)
                 }
 
                 // Public routes: 120/min by IP
-                rateLimit(rateLimiter, RateLimitConfig("pub", 120, keyType = KeyType.IP)) {
+                rateLimit(rateLimiter, RateLimitConfig("pub", PUBLIC_RATE_LIMIT, keyType = KeyType.IP)) {
                     socialRoutes(socialService, customerRepo)
                     if (videoService != null) {
                         videoRoutes(videoService)
@@ -54,7 +61,7 @@ fun Application.configureRouting(
                 }
 
                 // User routes: 200/min by customer_id
-                rateLimit(rateLimiter, RateLimitConfig("user", 200, keyType = KeyType.CUSTOMER_ID)) {
+                rateLimit(rateLimiter, RateLimitConfig("user", USER_RATE_LIMIT, keyType = KeyType.CUSTOMER_ID)) {
                     if (userService != null) {
                         userRoutes(userService)
                     }
@@ -82,7 +89,7 @@ fun Application.configureRouting(
         if (adminService != null) {
             if (rateLimiter != null) {
                 // Admin routes: 200/min by admin_id
-                rateLimit(rateLimiter, RateLimitConfig("admin", 200, keyType = KeyType.ADMIN_ID)) {
+                rateLimit(rateLimiter, RateLimitConfig("admin", ADMIN_RATE_LIMIT, keyType = KeyType.ADMIN_ID)) {
                     adminRoutes(adminService, reportService)
                 }
             } else {

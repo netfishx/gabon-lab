@@ -1,9 +1,13 @@
 package lab.gabon.route
 
-import io.ktor.http.*
-import io.ktor.server.auth.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.auth.authenticate
+import io.ktor.server.auth.principal
+import io.ktor.server.response.respond
+import io.ktor.server.routing.Route
+import io.ktor.server.routing.delete
+import io.ktor.server.routing.get
+import io.ktor.server.routing.post
 import kotlinx.serialization.Serializable
 import lab.gabon.model.JsonData
 import lab.gabon.model.Paginated
@@ -39,15 +43,22 @@ data class PublicProfileDto(
 
 // ── Route Registration ──────────────────────────────────────
 
-fun Route.socialRoutes(socialService: SocialService, customerRepo: CustomerRepo) {
-
+@Suppress("ThrowsCount")
+fun Route.socialRoutes(
+    socialService: SocialService,
+    customerRepo: CustomerRepo,
+) {
     // ── Authenticated routes ────────────────────────────────
     authenticate("customer") {
         // POST /users/{userId}/follow
         post("/users/{userId}/follow") {
             val principal = call.customerPrincipal()
-            val targetId = call.parameters["userId"]?.toLongOrNull()
-                ?: throw lab.gabon.model.AppException(lab.gabon.model.AppError.BadRequest("invalid user id"))
+            val targetId =
+                call.parameters["userId"]?.toLongOrNull()
+                    ?: throw lab.gabon.model.AppException(
+                        lab.gabon.model.AppError
+                            .BadRequest("invalid user id"),
+                    )
 
             socialService.follow(principal.customerId, targetId)
             call.respond(HttpStatusCode.OK, JsonData.ok("followed"))
@@ -56,8 +67,12 @@ fun Route.socialRoutes(socialService: SocialService, customerRepo: CustomerRepo)
         // DELETE /users/{userId}/follow
         delete("/users/{userId}/follow") {
             val principal = call.customerPrincipal()
-            val targetId = call.parameters["userId"]?.toLongOrNull()
-                ?: throw lab.gabon.model.AppException(lab.gabon.model.AppError.BadRequest("invalid user id"))
+            val targetId =
+                call.parameters["userId"]?.toLongOrNull()
+                    ?: throw lab.gabon.model.AppException(
+                        lab.gabon.model.AppError
+                            .BadRequest("invalid user id"),
+                    )
 
             socialService.unfollow(principal.customerId, targetId)
             call.respond(HttpStatusCode.OK, JsonData.ok("unfollowed"))
@@ -69,12 +84,13 @@ fun Route.socialRoutes(socialService: SocialService, customerRepo: CustomerRepo)
             val page = call.parameters["page"]?.toIntOrNull() ?: 1
             val pageSize = call.parameters["page_size"]?.toIntOrNull() ?: 10
 
-            val (items, total) = socialService.getFollowing(
-                userId = principal.customerId,
-                page = page,
-                pageSize = pageSize,
-                viewerId = principal.customerId,
-            )
+            val (items, total) =
+                socialService.getFollowing(
+                    userId = principal.customerId,
+                    page = page,
+                    pageSize = pageSize,
+                    viewerId = principal.customerId,
+                )
 
             call.respond(
                 HttpStatusCode.OK,
@@ -88,12 +104,13 @@ fun Route.socialRoutes(socialService: SocialService, customerRepo: CustomerRepo)
             val page = call.parameters["page"]?.toIntOrNull() ?: 1
             val pageSize = call.parameters["page_size"]?.toIntOrNull() ?: 10
 
-            val (items, total) = socialService.getFollowers(
-                userId = principal.customerId,
-                page = page,
-                pageSize = pageSize,
-                viewerId = principal.customerId,
-            )
+            val (items, total) =
+                socialService.getFollowers(
+                    userId = principal.customerId,
+                    page = page,
+                    pageSize = pageSize,
+                    viewerId = principal.customerId,
+                )
 
             call.respond(
                 HttpStatusCode.OK,
@@ -106,11 +123,19 @@ fun Route.socialRoutes(socialService: SocialService, customerRepo: CustomerRepo)
     authenticate("customer", optional = true) {
         // GET /users/{userId} — public profile
         get("/users/{userId}") {
-            val targetId = call.parameters["userId"]?.toLongOrNull()
-                ?: throw lab.gabon.model.AppException(lab.gabon.model.AppError.BadRequest("invalid user id"))
+            val targetId =
+                call.parameters["userId"]?.toLongOrNull()
+                    ?: throw lab.gabon.model.AppException(
+                        lab.gabon.model.AppError
+                            .BadRequest("invalid user id"),
+                    )
 
-            val customer = customerRepo.findById(targetId)
-                ?: throw lab.gabon.model.AppException(lab.gabon.model.AppError.NotFound("user not found"))
+            val customer =
+                customerRepo.findById(targetId)
+                    ?: throw lab.gabon.model.AppException(
+                        lab.gabon.model.AppError
+                            .NotFound("user not found"),
+                    )
 
             val viewerId = call.principal<CustomerPrincipal>()?.customerId
 
@@ -131,26 +156,31 @@ fun Route.socialRoutes(socialService: SocialService, customerRepo: CustomerRepo)
                         followingCount = followingCount,
                         followerCount = followerCount,
                         followStatus = followStatus,
-                    )
+                    ),
                 ),
             )
         }
 
         // GET /users/{userId}/following
         get("/users/{userId}/following") {
-            val targetId = call.parameters["userId"]?.toLongOrNull()
-                ?: throw lab.gabon.model.AppException(lab.gabon.model.AppError.BadRequest("invalid user id"))
+            val targetId =
+                call.parameters["userId"]?.toLongOrNull()
+                    ?: throw lab.gabon.model.AppException(
+                        lab.gabon.model.AppError
+                            .BadRequest("invalid user id"),
+                    )
 
             val viewerId = call.principal<CustomerPrincipal>()?.customerId
             val page = call.parameters["page"]?.toIntOrNull() ?: 1
             val pageSize = call.parameters["page_size"]?.toIntOrNull() ?: 10
 
-            val (items, total) = socialService.getFollowing(
-                userId = targetId,
-                page = page,
-                pageSize = pageSize,
-                viewerId = viewerId,
-            )
+            val (items, total) =
+                socialService.getFollowing(
+                    userId = targetId,
+                    page = page,
+                    pageSize = pageSize,
+                    viewerId = viewerId,
+                )
 
             call.respond(
                 HttpStatusCode.OK,
@@ -160,19 +190,24 @@ fun Route.socialRoutes(socialService: SocialService, customerRepo: CustomerRepo)
 
         // GET /users/{userId}/followers
         get("/users/{userId}/followers") {
-            val targetId = call.parameters["userId"]?.toLongOrNull()
-                ?: throw lab.gabon.model.AppException(lab.gabon.model.AppError.BadRequest("invalid user id"))
+            val targetId =
+                call.parameters["userId"]?.toLongOrNull()
+                    ?: throw lab.gabon.model.AppException(
+                        lab.gabon.model.AppError
+                            .BadRequest("invalid user id"),
+                    )
 
             val viewerId = call.principal<CustomerPrincipal>()?.customerId
             val page = call.parameters["page"]?.toIntOrNull() ?: 1
             val pageSize = call.parameters["page_size"]?.toIntOrNull() ?: 10
 
-            val (items, total) = socialService.getFollowers(
-                userId = targetId,
-                page = page,
-                pageSize = pageSize,
-                viewerId = viewerId,
-            )
+            val (items, total) =
+                socialService.getFollowers(
+                    userId = targetId,
+                    page = page,
+                    pageSize = pageSize,
+                    viewerId = viewerId,
+                )
 
             call.respond(
                 HttpStatusCode.OK,
@@ -184,10 +219,11 @@ fun Route.socialRoutes(socialService: SocialService, customerRepo: CustomerRepo)
 
 // ── Extension mappers ───────────────────────────────────────
 
-private fun FollowUserRow.toDto(): FollowUserDto = FollowUserDto(
-    userId = userId,
-    username = username,
-    name = name,
-    avatarUrl = avatarUrl,
-    followStatus = followStatus,
-)
+private fun FollowUserRow.toDto(): FollowUserDto =
+    FollowUserDto(
+        userId = userId,
+        username = username,
+        name = name,
+        avatarUrl = avatarUrl,
+        followStatus = followStatus,
+    )

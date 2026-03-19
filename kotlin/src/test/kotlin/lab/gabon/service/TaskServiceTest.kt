@@ -10,7 +10,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class TaskServiceTest {
-
     private val taskRepo = mockk<TaskRepo>()
     private val signInRepo = mockk<SignInRepo>()
     private val taskService = TaskService(taskRepo, signInRepo)

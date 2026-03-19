@@ -1,8 +1,10 @@
 package lab.gabon.route
 
-import io.ktor.http.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.response.respond
+import io.ktor.server.routing.Route
+import io.ktor.server.routing.get
+import io.ktor.server.routing.route
 import kotlinx.serialization.Serializable
 import lab.gabon.model.JsonData
 import lab.gabon.repository.RevenueReportRow
@@ -44,16 +46,18 @@ data class VideoSummaryReportDto(
 fun Route.reportRoutes(reportService: ReportService) {
     route("/reports") {
         get("/revenue") {
-            val startDate = call.queryParameters["start_date"]
-                ?: return@get call.respond(
-                    HttpStatusCode.BadRequest,
-                    JsonData.error(400, "start_date is required"),
-                )
-            val endDate = call.queryParameters["end_date"]
-                ?: return@get call.respond(
-                    HttpStatusCode.BadRequest,
-                    JsonData.error(400, "end_date is required"),
-                )
+            val startDate =
+                call.queryParameters["start_date"]
+                    ?: return@get call.respond(
+                        HttpStatusCode.BadRequest,
+                        JsonData.error(400, "start_date is required"),
+                    )
+            val endDate =
+                call.queryParameters["end_date"]
+                    ?: return@get call.respond(
+                        HttpStatusCode.BadRequest,
+                        JsonData.error(400, "end_date is required"),
+                    )
 
             val rows = reportService.revenueReport(startDate, endDate)
             call.respond(HttpStatusCode.OK, JsonData.ok(rows.map { it.toDto() }))
@@ -61,32 +65,36 @@ fun Route.reportRoutes(reportService: ReportService) {
 
         route("/video") {
             get("/daily") {
-                val startDate = call.queryParameters["start_date"]
-                    ?: return@get call.respond(
-                        HttpStatusCode.BadRequest,
-                        JsonData.error(400, "start_date is required"),
-                    )
-                val endDate = call.queryParameters["end_date"]
-                    ?: return@get call.respond(
-                        HttpStatusCode.BadRequest,
-                        JsonData.error(400, "end_date is required"),
-                    )
+                val startDate =
+                    call.queryParameters["start_date"]
+                        ?: return@get call.respond(
+                            HttpStatusCode.BadRequest,
+                            JsonData.error(400, "start_date is required"),
+                        )
+                val endDate =
+                    call.queryParameters["end_date"]
+                        ?: return@get call.respond(
+                            HttpStatusCode.BadRequest,
+                            JsonData.error(400, "end_date is required"),
+                        )
 
                 val rows = reportService.videoDailyReport(startDate, endDate)
                 call.respond(HttpStatusCode.OK, JsonData.ok(rows.map { it.toDto() }))
             }
 
             get("/summary") {
-                val startDate = call.queryParameters["start_date"]
-                    ?: return@get call.respond(
-                        HttpStatusCode.BadRequest,
-                        JsonData.error(400, "start_date is required"),
-                    )
-                val endDate = call.queryParameters["end_date"]
-                    ?: return@get call.respond(
-                        HttpStatusCode.BadRequest,
-                        JsonData.error(400, "end_date is required"),
-                    )
+                val startDate =
+                    call.queryParameters["start_date"]
+                        ?: return@get call.respond(
+                            HttpStatusCode.BadRequest,
+                            JsonData.error(400, "start_date is required"),
+                        )
+                val endDate =
+                    call.queryParameters["end_date"]
+                        ?: return@get call.respond(
+                            HttpStatusCode.BadRequest,
+                            JsonData.error(400, "end_date is required"),
+                        )
 
                 val summary = reportService.videoSummaryReport(startDate, endDate)
                 call.respond(HttpStatusCode.OK, JsonData.ok(summary.toDto()))
@@ -97,26 +105,29 @@ fun Route.reportRoutes(reportService: ReportService) {
 
 // ── Extension mappers ───────────────────────────────────────
 
-private fun RevenueReportRow.toDto(): RevenueReportDto = RevenueReportDto(
-    date = date,
-    claimCount = claimCount,
-    totalDiamonds = totalDiamonds,
-)
+private fun RevenueReportRow.toDto(): RevenueReportDto =
+    RevenueReportDto(
+        date = date,
+        claimCount = claimCount,
+        totalDiamonds = totalDiamonds,
+    )
 
-private fun VideoDailyReportRow.toDto(): VideoDailyReportDto = VideoDailyReportDto(
-    date = date,
-    uploadCount = uploadCount,
-    totalClicks = totalClicks,
-    totalValidClicks = totalValidClicks,
-    totalLikes = totalLikes,
-)
+private fun VideoDailyReportRow.toDto(): VideoDailyReportDto =
+    VideoDailyReportDto(
+        date = date,
+        uploadCount = uploadCount,
+        totalClicks = totalClicks,
+        totalValidClicks = totalValidClicks,
+        totalLikes = totalLikes,
+    )
 
-private fun VideoSummaryReportRow.toDto(): VideoSummaryReportDto = VideoSummaryReportDto(
-    totalVideos = totalVideos,
-    approvedCount = approvedCount,
-    pendingCount = pendingCount,
-    rejectedCount = rejectedCount,
-    totalClicks = totalClicks,
-    totalValidClicks = totalValidClicks,
-    totalLikes = totalLikes,
-)
+private fun VideoSummaryReportRow.toDto(): VideoSummaryReportDto =
+    VideoSummaryReportDto(
+        totalVideos = totalVideos,
+        approvedCount = approvedCount,
+        pendingCount = pendingCount,
+        rejectedCount = rejectedCount,
+        totalClicks = totalClicks,
+        totalValidClicks = totalValidClicks,
+        totalLikes = totalLikes,
+    )

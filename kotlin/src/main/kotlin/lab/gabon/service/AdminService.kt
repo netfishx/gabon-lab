@@ -8,8 +8,8 @@ import lab.gabon.model.AppException
 import lab.gabon.model.VideoStatus
 import lab.gabon.repository.AdminUserRepo
 import lab.gabon.repository.AdminUserRow
-import lab.gabon.repository.AdminVideoRepo
 import lab.gabon.repository.AdminVideoListRow
+import lab.gabon.repository.AdminVideoRepo
 import lab.gabon.repository.AdminVideoRow
 import lab.gabon.repository.CustomerRepo
 import lab.gabon.repository.CustomerRow
@@ -21,12 +21,15 @@ class AdminService(
     private val jwtService: JwtService,
     private val tokenStore: RedisTokenStore,
 ) {
-
     // ── Admin Auth ─────────────────────────────────────────────
 
-    suspend fun login(username: String, password: String): TokenResponse {
-        val admin = adminUserRepo.findByUsername(username)
-            ?: throw AppException(AppError.InvalidCredentials())
+    suspend fun login(
+        username: String,
+        password: String,
+    ): TokenResponse {
+        val admin =
+            adminUserRepo.findByUsername(username)
+                ?: throw AppException(AppError.InvalidCredentials())
 
         if (admin.status != AdminStatus.ACTIVE.value) {
             throw AppException(AppError.Forbidden("account is disabled"))
@@ -60,11 +63,12 @@ class AdminService(
         val role = claims.role ?: throw AppException(AppError.TokenInvalid("missing role"))
         val newTokenPair = jwtService.generateAdminTokens(claims.userId, role)
 
-        val casResult = tokenStore.casFamily(
-            familyId = claims.familyId,
-            expectedJti = claims.jti,
-            newJti = newTokenPair.refreshJti,
-        )
+        val casResult =
+            tokenStore.casFamily(
+                familyId = claims.familyId,
+                expectedJti = claims.jti,
+                newJti = newTokenPair.refreshJti,
+            )
 
         return when (casResult) {
             is CasResult.Success ->
@@ -76,16 +80,20 @@ class AdminService(
         }
     }
 
-    suspend fun logout(adminId: Long, jti: String, familyId: String) {
+    @Suppress("UnusedParameter")
+    suspend fun logout(
+        adminId: Long,
+        jti: String,
+        familyId: String,
+    ) {
         val remainingSeconds = jwtService.config.adminAccessTtl.inWholeSeconds
         tokenStore.setBlacklist(jti, remainingSeconds)
         tokenStore.deleteFamily(familyId)
     }
 
-    suspend fun getMe(adminId: Long): AdminUserRow {
-        return adminUserRepo.findById(adminId)
+    suspend fun getMe(adminId: Long): AdminUserRow =
+        adminUserRepo.findById(adminId)
             ?: throw AppException(AppError.NotFound("admin not found"))
-    }
 
     // ── Admin CRUD ─────────────────────────────────────────────
 
@@ -113,13 +121,11 @@ class AdminService(
         username: String? = null,
         role: Short? = null,
         status: Short? = null,
-    ): Pair<List<AdminUserRow>, Long> =
-        adminUserRepo.listAdmins(page, pageSize, username, role, status)
+    ): Pair<List<AdminUserRow>, Long> = adminUserRepo.listAdmins(page, pageSize, username, role, status)
 
-    suspend fun getAdmin(id: Long): AdminUserRow {
-        return adminUserRepo.findById(id)
+    suspend fun getAdmin(id: Long): AdminUserRow =
+        adminUserRepo.findById(id)
             ?: throw AppException(AppError.NotFound("admin not found"))
-    }
 
     suspend fun updateAdmin(
         currentRole: String,
@@ -137,7 +143,11 @@ class AdminService(
         }
     }
 
-    suspend fun deleteAdmin(currentRole: String, currentAdminId: Long, targetId: Long) {
+    suspend fun deleteAdmin(
+        currentRole: String,
+        currentAdminId: Long,
+        targetId: Long,
+    ) {
         requireSuperadmin(currentRole)
 
         if (currentAdminId == targetId) {
@@ -177,12 +187,19 @@ class AdminService(
         endDate: String? = null,
         isVip: Boolean? = null,
     ): Pair<List<AdminVideoListRow>, Long> =
-        adminVideoRepo.listVideosAdmin(page, pageSize, status, authorName, startDate, endDate, isVip)
+        adminVideoRepo.listVideosAdmin(
+            page,
+            pageSize,
+            status,
+            authorName,
+            startDate,
+            endDate,
+            isVip,
+        )
 
-    suspend fun getVideoDetailAdmin(videoId: Long): AdminVideoRow {
-        return adminVideoRepo.getVideoDetailAdmin(videoId)
+    suspend fun getVideoDetailAdmin(videoId: Long): AdminVideoRow =
+        adminVideoRepo.getVideoDetailAdmin(videoId)
             ?: throw AppException(AppError.VideoNotFound())
-    }
 
     suspend fun reviewVideo(
         videoId: Long,
@@ -214,10 +231,12 @@ class AdminService(
         pageSize: Int,
         name: String? = null,
         isVip: Boolean? = null,
-    ): Pair<List<CustomerRow>, Long> =
-        adminVideoRepo.listCustomers(page, pageSize, name, isVip)
+    ): Pair<List<CustomerRow>, Long> = adminVideoRepo.listCustomers(page, pageSize, name, isVip)
 
-    suspend fun resetCustomerPassword(customerId: Long, newPassword: String) {
+    suspend fun resetCustomerPassword(
+        customerId: Long,
+        newPassword: String,
+    ) {
         customerRepo.findById(customerId)
             ?: throw AppException(AppError.NotFound("customer not found"))
 
@@ -234,10 +253,14 @@ class AdminService(
     }
 
     private fun hashPassword(password: String): String =
-        BCrypt.withDefaults().hashToString(BCRYPT_COST, password.toCharArray())
+        BCrypt
+            .withDefaults()
+            .hashToString(BCRYPT_COST, password.toCharArray())
 
-    private fun verifyPassword(password: String, hash: String): Boolean =
-        BCrypt.verifyer().verify(password.toCharArray(), hash).verified
+    private fun verifyPassword(
+        password: String,
+        hash: String,
+    ): Boolean = BCrypt.verifyer().verify(password.toCharArray(), hash).verified
 
     companion object {
         private const val BCRYPT_COST = 10

@@ -17,7 +17,8 @@ val LoomDispatcher: CoroutineDispatcher =
 fun initDatabase(config: AppConfig): Database {
     val dataSource = createDataSource(config.databaseUrl)
 
-    Flyway.configure()
+    Flyway
+        .configure()
         .dataSource(dataSource)
         .locations("classpath:db/migration")
         .load()
@@ -31,18 +32,23 @@ suspend fun <T> dbQuery(block: () -> T): T =
         transaction { block() }
     }
 
+private const val MAX_POOL_SIZE = 30
+private const val CONNECTION_TIMEOUT_MS = 10_000L
+
 private fun createDataSource(databaseUrl: String): HikariDataSource {
     val uri = URI(databaseUrl)
     val userInfo = uri.userInfo?.split(":") ?: error("DATABASE_URL missing user info")
     val jdbcUrl = "jdbc:postgresql://${uri.host}:${uri.port}${uri.path}"
 
-    return HikariDataSource(HikariConfig().apply {
-        this.jdbcUrl = jdbcUrl
-        username = userInfo[0]
-        password = userInfo.getOrElse(1) { "" }
-        maximumPoolSize = 30
-        isAutoCommit = false
-        connectionTimeout = 10_000
-        driverClassName = "org.postgresql.Driver"
-    })
+    return HikariDataSource(
+        HikariConfig().apply {
+            this.jdbcUrl = jdbcUrl
+            username = userInfo[0]
+            password = userInfo.getOrElse(1) { "" }
+            maximumPoolSize = MAX_POOL_SIZE
+            isAutoCommit = false
+            connectionTimeout = CONNECTION_TIMEOUT_MS
+            driverClassName = "org.postgresql.Driver"
+        },
+    )
 }
