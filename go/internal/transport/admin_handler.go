@@ -87,14 +87,14 @@ type ListAdminsInput struct {
 type ListCustomersInput struct {
 	PaginationParams
 	Name  string `query:"name" doc:"姓名模糊搜索"`
-	IsVip *bool  `query:"is_vip" doc:"VIP过滤"`
+	IsVip string `query:"is_vip" doc:"VIP过滤 (true/false)"`
 }
 
 type AdminListVideosInput struct {
 	PaginationParams
 	AuthorName string `query:"author_name" doc:"作者名模糊搜索"`
 	Status     int16  `query:"status" doc:"视频状态过滤"`
-	IsVip      *bool  `query:"is_vip" doc:"作者VIP过滤"`
+	IsVip      string `query:"is_vip" doc:"作者VIP过滤 (true/false)"`
 	StartDate  string `query:"start_date" doc:"开始日期 (YYYY-MM-DD)"`
 	EndDate    string `query:"end_date" doc:"结束日期 (YYYY-MM-DD)"`
 }
@@ -246,7 +246,13 @@ func (h *AdminHandler) ListCustomers(ctx context.Context, input *ListCustomersIn
 	if input.Name != "" {
 		filter.Name = &input.Name
 	}
-	filter.IsVip = input.IsVip
+	if input.IsVip == "true" {
+		v := true
+		filter.IsVip = &v
+	} else if input.IsVip == "false" {
+		v := false
+		filter.IsVip = &v
+	}
 	items, total, err := h.svc.ListCustomers(ctx, input.Page, input.PageSize, filter)
 	if err != nil {
 		return nil, err
@@ -269,7 +275,13 @@ func (h *AdminHandler) AdminListVideos(ctx context.Context, input *AdminListVide
 	if input.Status != 0 {
 		filter.Status = &input.Status
 	}
-	filter.IsVip = input.IsVip
+	if input.IsVip == "true" {
+		v := true
+		filter.IsVip = &v
+	} else if input.IsVip == "false" {
+		v := false
+		filter.IsVip = &v
+	}
 	if input.StartDate != "" {
 		t, err := time.Parse("2006-01-02", input.StartDate)
 		if err != nil {
