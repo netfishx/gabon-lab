@@ -63,7 +63,7 @@ All files under `java/` unless noted. `~` = project root.
 | `src/.../model/entity/UserFollow.java` | `user_follows` |
 | `src/.../model/entity/TaskDefinition.java` | `task_definitions` |
 | `src/.../model/entity/TaskProgress.java` | `task_progress` |
-| `src/.../model/entity/SignInRecord.java` | `sign_in_records` |
+| `src/.../model/entity/CustomerSignInRecord.java` | `customer_sign_in_records` |
 
 ### Model: Request/Response Records
 | File | Contents |
@@ -89,7 +89,7 @@ All files under `java/` unless noted. `~` = project root.
 | `src/.../repository/AdminUserRepository.java` | admin_users |
 | `src/.../repository/TaskDefinitionRepository.java` | task_definitions |
 | `src/.../repository/TaskProgressRepository.java` | task_progress |
-| `src/.../repository/SignInRecordRepository.java` | sign_in_records |
+| `src/.../repository/CustomerSignInRecordRepository.java` | sign_in_records |
 
 ### Services
 | File | Responsibility |
@@ -332,24 +332,25 @@ Virtual Threads enabled in application.yml."
 
 - [ ] **Step 1: Create `ApiResponse.java`**
 
-Response format matches Go: `{ "code": "OK", "message": "ok", "data": {...} }`.
-Error: `{ "code": "AUTH_INVALID_CREDENTIALS", "message": "...", "data": null }`.
+Response format matches Go/Rust/Kotlin: `int code` (success=0, error=HTTP status).
+Success: `{ "code": 0, "message": "ok", "data": {...} }`
+Error: `{ "code": 401, "message": "invalid username or password", "data": null }`
 
 ```java
 package lab.gabon.common;
 
-public record ApiResponse<T>(String code, String message, T data) {
+public record ApiResponse<T>(int code, String message, T data) {
 
     public static <T> ApiResponse<T> ok(T data) {
-        return new ApiResponse<>("OK", "ok", data);
+        return new ApiResponse<>(0, "ok", data);
     }
 
     public static ApiResponse<Void> ok() {
-        return new ApiResponse<>("OK", "ok", null);
+        return new ApiResponse<>(0, "ok", null);
     }
 
     public static ApiResponse<Void> error(AppError error) {
-        return new ApiResponse<>(error.code(), error.message(), null);
+        return new ApiResponse<>(error.status(), error.message(), null);
     }
 }
 ```
@@ -368,115 +369,117 @@ public record PageResponse<T>(List<T> items, long total, int page, int pageSize)
 
 All 19 error codes from Go `model/errors.go`. Sealed Interface with Record implementations.
 
+`errorCode()` is for internal logging/debugging only. The response envelope uses `status()` as `code` and `message()` as `message` — matching Go/Rust/Kotlin `{ "code": <http_status>, "message": "..." }`.
+
 ```java
 package lab.gabon.common;
 
 public sealed interface AppError {
 
-    String code();
-    String message();
-    int status();
+    String errorCode();  // Internal identifier, e.g. "AUTH_INVALID_CREDENTIALS" (for logs)
+    String message();    // Human-readable, maps to response.message
+    int status();        // HTTP status code, maps to response.code
 
     // Generic errors
     record Internal(String message) implements AppError {
-        public String code() { return "INTERNAL_ERROR"; }
+        public String errorCode() { return "INTERNAL_ERROR"; }
         public int status() { return 500; }
     }
     record BadRequest(String message) implements AppError {
-        public String code() { return "BAD_REQUEST"; }
+        public String errorCode() { return "BAD_REQUEST"; }
         public int status() { return 400; }
     }
     record NotFound(String message) implements AppError {
-        public String code() { return "NOT_FOUND"; }
+        public String errorCode() { return "NOT_FOUND"; }
         public int status() { return 404; }
     }
     record Unauthorized() implements AppError {
-        public String code() { return "UNAUTHORIZED"; }
+        public String errorCode() { return "UNAUTHORIZED"; }
         public String message() { return "unauthorized"; }
         public int status() { return 401; }
     }
     record Forbidden() implements AppError {
-        public String code() { return "FORBIDDEN"; }
+        public String errorCode() { return "FORBIDDEN"; }
         public String message() { return "forbidden"; }
         public int status() { return 403; }
     }
 
     // Auth errors
     record InvalidCredentials() implements AppError {
-        public String code() { return "AUTH_INVALID_CREDENTIALS"; }
+        public String errorCode() { return "AUTH_INVALID_CREDENTIALS"; }
         public String message() { return "invalid username or password"; }
         public int status() { return 401; }
     }
     record TokenExpired() implements AppError {
-        public String code() { return "AUTH_TOKEN_EXPIRED"; }
+        public String errorCode() { return "AUTH_TOKEN_EXPIRED"; }
         public String message() { return "token expired"; }
         public int status() { return 401; }
     }
     record TokenInvalid() implements AppError {
-        public String code() { return "AUTH_TOKEN_INVALID"; }
+        public String errorCode() { return "AUTH_TOKEN_INVALID"; }
         public String message() { return "token invalid"; }
         public int status() { return 401; }
     }
     record UsernameExists() implements AppError {
-        public String code() { return "AUTH_USERNAME_EXISTS"; }
+        public String errorCode() { return "AUTH_USERNAME_EXISTS"; }
         public String message() { return "username already exists"; }
         public int status() { return 409; }
     }
     record PasswordMismatch() implements AppError {
-        public String code() { return "AUTH_PASSWORD_MISMATCH"; }
+        public String errorCode() { return "AUTH_PASSWORD_MISMATCH"; }
         public String message() { return "current password is incorrect"; }
         public int status() { return 400; }
     }
 
     // Video errors
     record VideoNotFound() implements AppError {
-        public String code() { return "VIDEO_NOT_FOUND"; }
+        public String errorCode() { return "VIDEO_NOT_FOUND"; }
         public String message() { return "video not found"; }
         public int status() { return 404; }
     }
     record VideoNotApproved() implements AppError {
-        public String code() { return "VIDEO_NOT_APPROVED"; }
+        public String errorCode() { return "VIDEO_NOT_APPROVED"; }
         public String message() { return "video not approved"; }
         public int status() { return 403; }
     }
     record AlreadyLiked() implements AppError {
-        public String code() { return "VIDEO_ALREADY_LIKED"; }
+        public String errorCode() { return "VIDEO_ALREADY_LIKED"; }
         public String message() { return "already liked"; }
         public int status() { return 409; }
     }
 
     // User errors
     record AlreadyFollowing() implements AppError {
-        public String code() { return "USER_ALREADY_FOLLOWING"; }
+        public String errorCode() { return "USER_ALREADY_FOLLOWING"; }
         public String message() { return "already following"; }
         public int status() { return 409; }
     }
     record CannotFollowSelf() implements AppError {
-        public String code() { return "USER_CANNOT_FOLLOW_SELF"; }
+        public String errorCode() { return "USER_CANNOT_FOLLOW_SELF"; }
         public String message() { return "cannot follow yourself"; }
         public int status() { return 400; }
     }
     record NotFollowing() implements AppError {
-        public String code() { return "USER_NOT_FOLLOWING"; }
+        public String errorCode() { return "USER_NOT_FOLLOWING"; }
         public String message() { return "not following"; }
         public int status() { return 400; }
     }
 
     // Task errors
     record TaskNotClaimable() implements AppError {
-        public String code() { return "TASK_NOT_CLAIMABLE"; }
+        public String errorCode() { return "TASK_NOT_CLAIMABLE"; }
         public String message() { return "task not claimable"; }
         public int status() { return 400; }
     }
     record AlreadySignedIn() implements AppError {
-        public String code() { return "ALREADY_SIGNED_IN"; }
+        public String errorCode() { return "ALREADY_SIGNED_IN"; }
         public String message() { return "already signed in today"; }
         public int status() { return 409; }
     }
 
     // Rate limit
     record RateLimited() implements AppError {
-        public String code() { return "RATE_LIMITED"; }
+        public String errorCode() { return "RATE_LIMITED"; }
         public String message() { return "too many requests"; }
         public int status() { return 429; }
     }
@@ -493,7 +496,7 @@ public class AppException extends RuntimeException {
     private final AppError error;
 
     public AppException(AppError error) {
-        super(error.code() + ": " + error.message());
+        super(error.errorCode() + ": " + error.message());
         this.error = error;
     }
 
@@ -568,7 +571,7 @@ codes matching Go), AppException, GlobalExceptionHandler."
 
 Copy from `go/db/migrations/001_init.sql` (minus goose directives), and add the `sign_in_records` table. Use `IF NOT EXISTS` for idempotency since other implementations share the same PG database.
 
-**Note on `sign_in_records`:** Go may use a different table name (`customer_sign_in_records`) with different fields. Since the gabon-lab design allows independent API paths and schema per implementation (see project CLAUDE.md: "API 设计各自独立"), Java uses its own `sign_in_records` table. The correctness check only compares HTTP status codes and response structure, not internal schema.
+**Note:** The `customer_sign_in_records` table matches Go migration `003_add_sign_in.sql` exactly. All implementations share this table in the same PG database.
 
 ```sql
 -- Reuses schema from Go/Kotlin implementations.
@@ -703,14 +706,15 @@ CREATE TABLE IF NOT EXISTS task_progress (
 );
 CREATE INDEX IF NOT EXISTS idx_task_progress_customer ON task_progress(customer_id);
 
-CREATE TABLE IF NOT EXISTS sign_in_records (
+CREATE TABLE IF NOT EXISTS customer_sign_in_records (
     id              BIGSERIAL PRIMARY KEY,
     customer_id     BIGINT NOT NULL REFERENCES customers(id),
-    sign_in_date    DATE NOT NULL,
-    streak_days     INT NOT NULL DEFAULT 1,
+    period_key      VARCHAR(50) NOT NULL,
+    reward_diamonds INT NOT NULL,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(customer_id, sign_in_date)
+    UNIQUE(customer_id, period_key)
 );
+CREATE INDEX IF NOT EXISTS idx_sign_in_records_customer ON customer_sign_in_records(customer_id);
 ```
 
 - [ ] **Step 2: Create entity classes**
@@ -2301,6 +2305,47 @@ Follow the structure of `go/CLAUDE.md` and `kotlin/CLAUDE.md`. Include:
 ```bash
 git add java/CLAUDE.md
 git commit -m "docs(java): add CLAUDE.md for Java implementation"
+```
+
+---
+
+## Task 16: Update Repository-Level Documents
+
+The old Java baseline (Maven, `com.gabon.*`, MySQL) is replaced. Repository docs must be updated to avoid conflicting instructions.
+
+**Files:**
+- Modify: `~/AGENTS.md`
+- Modify: `~/CLAUDE.md`
+- Modify: `~/.env.example`
+
+- [ ] **Step 1: Update `AGENTS.md`**
+
+Replace all references to the old Java setup:
+- "Java uses Maven modules: gabon-service, gabon-admin, and gabon-common" → "Java uses Gradle single-module: `lab.gabon` package (Spring Boot 4.0 + JDK 25)"
+- "Java is not wired into the root Makefile" → "Java is wired into the root Makefile: `make dev-java`, `make test-java`, `make lint-java`"
+- "`com.gabon.*` package layout with controller/service/mapper" → "`lab.gabon.*` package layout with controller/service/repository (Spring Data JDBC)"
+- "`cd java && mvn test`" → "`make test-java` or `cd java && ./gradlew test --no-daemon`"
+- Add Kotlin references where missing (AGENTS.md currently only mentions Go/Rust/Java)
+
+- [ ] **Step 2: Update root `CLAUDE.md`**
+
+In the project CLAUDE.md:
+- Update the `java/` entry in 仓库结构 from "Java 实现 (Spring Boot + MyBatis-Plus + MySQL)" to "Java 实现 (Spring Boot 4.0 + Spring Data JDBC + PostgreSQL)"
+- Update 技术栈对比 table: Java column should reflect SB 4.0, Spring Data JDBC, PostgreSQL, Gradle
+- Add `JAVA_PORT=8082` to port table
+- Add `make dev-java / test-java / lint-java / migrate-java` to 常用命令
+- Remove any MySQL references from Java row (Java now shares PostgreSQL)
+- Update 评测结论速查 table with placeholder for new Java numbers
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add AGENTS.md CLAUDE.md
+git commit -m "docs: update repo-level docs for new Java implementation
+
+Replace old Java baseline (Maven, com.gabon.*, MySQL) with new
+Spring Boot 4.0 + Gradle + lab.gabon.* + PostgreSQL references
+in AGENTS.md and root CLAUDE.md."
 ```
 
 ---

@@ -133,37 +133,44 @@ PostgreSQL + Redis
 
 ### Modern Java Patterns
 
-**Record 替代 DTO class**：
+**Response envelope（对齐 Go/Rust/Kotlin：int code）**：
+
+成功：`{ "code": 0, "message": "ok", "data": {...} }`
+错误：`{ "code": 401, "message": "invalid username or password", "data": null }`
+
 ```java
-public record ApiResponse<T>(String code, String message, T data) {
+public record ApiResponse<T>(int code, String message, T data) {
     public static <T> ApiResponse<T> ok(T data) {
-        return new ApiResponse<>("OK", "ok", data);
+        return new ApiResponse<>(0, "ok", data);
     }
     public static ApiResponse<Void> error(AppError error) {
-        return new ApiResponse<>(error.code(), error.message(), null);
+        return new ApiResponse<>(error.status(), error.message(), null);
     }
 }
 ```
 
 **Sealed Interface 错误层级**（对标 Kotlin sealed class / Rust thiserror）：
+
+`errorCode()` 用于内部日志/调试，`status()` 和 `message()` 用于响应 envelope。
+
 ```java
 public sealed interface AppError {
-    String code();
-    String message();
-    int status();
+    String errorCode();  // 内部标识，如 "AUTH_INVALID_CREDENTIALS"
+    String message();    // 人类可读，映射到 response.message
+    int status();        // HTTP 状态码，映射到 response.code
 
     record InvalidCredentials() implements AppError {
-        public String code()    { return "AUTH_INVALID_CREDENTIALS"; }
-        public String message() { return "用户名或密码错误"; }
-        public int status()     { return 401; }
+        public String errorCode() { return "AUTH_INVALID_CREDENTIALS"; }
+        public String message()   { return "invalid username or password"; }
+        public int status()       { return 401; }
     }
 
     record NotFound(String resource) implements AppError {
-        public String code()    { return "NOT_FOUND"; }
-        public String message() { return resource + "不存在"; }
-        public int status()     { return 404; }
+        public String errorCode() { return "NOT_FOUND"; }
+        public String message()   { return resource + " not found"; }
+        public int status()       { return 404; }
     }
-    // ... 40+ error codes aligned with Go implementation
+    // ... 19 error codes matching Go internal/model/errors.go
 }
 ```
 
@@ -296,7 +303,7 @@ Period Key 由 Service 层统一生成（`TaskService.generatePeriodKey()`），
 
 - PostgreSQL 18 (shared with Go/Rust/Kotlin)
 - Flyway migration: `V001__init.sql` reuses existing PG schema
-- 8 core tables: admin_users, customers, videos, video_play_records, video_likes, user_follows, task_definitions, task_progress, sign_in_records
+- 8 core tables: admin_users, customers, videos, video_play_records, video_likes, user_follows, task_definitions, task_progress, customer_sign_in_records
 - Dual mode: auto-migrate on startup + manual `make migrate-java`
 
 ## Testing
