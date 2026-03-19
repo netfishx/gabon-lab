@@ -95,7 +95,8 @@ data class VideoDetailDto(
 
 // ── Route Registration ──────────────────────────────────────
 
-fun Route.videoRoutes(videoService: VideoService) {
+/** Public video routes: list, featured, detail, play tracking (pub rate limit group). */
+fun Route.videoPublicRoutes(videoService: VideoService) {
     route("/videos") {
         // Public routes (no auth needed)
         get {
@@ -158,8 +159,12 @@ fun Route.videoRoutes(videoService: VideoService) {
                 call.respond(HttpStatusCode.OK, JsonData.ok("ok"))
             }
         }
+    }
+}
 
-        // Authenticated routes (require customer auth)
+/** Authenticated video routes: upload, like/unlike, my videos, delete (user rate limit group). */
+fun Route.videoAuthRoutes(videoService: VideoService) {
+    route("/videos") {
         authenticate("customer") {
             post("/{id}/like") {
                 val principal = call.customerPrincipal()

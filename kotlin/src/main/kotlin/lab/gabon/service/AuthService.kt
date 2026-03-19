@@ -85,8 +85,8 @@ class AuthService(
             throw AppException(AppError.TokenInvalid("not a refresh token"))
         }
 
-        // Generate new token pair first, then atomically CAS the family
-        val newTokenPair = jwtService.generateCustomerTokens(claims.userId)
+        // Generate new token pair reusing the SAME family, then atomically CAS
+        val newTokenPair = jwtService.generateCustomerTokens(claims.userId, claims.familyId)
 
         val casResult =
             tokenStore.casFamily(

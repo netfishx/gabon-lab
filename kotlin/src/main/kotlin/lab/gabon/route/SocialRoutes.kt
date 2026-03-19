@@ -43,82 +43,11 @@ data class PublicProfileDto(
 
 // ── Route Registration ──────────────────────────────────────
 
-@Suppress("ThrowsCount")
-fun Route.socialRoutes(
+/** Public social routes: profile, following/followers lists (pub rate limit group). */
+fun Route.socialPublicRoutes(
     socialService: SocialService,
     customerRepo: CustomerRepo,
 ) {
-    // ── Authenticated routes ────────────────────────────────
-    authenticate("customer") {
-        // POST /users/{userId}/follow
-        post("/users/{userId}/follow") {
-            val principal = call.customerPrincipal()
-            val targetId =
-                call.parameters["userId"]?.toLongOrNull()
-                    ?: throw lab.gabon.model.AppException(
-                        lab.gabon.model.AppError
-                            .BadRequest("invalid user id"),
-                    )
-
-            socialService.follow(principal.customerId, targetId)
-            call.respond(HttpStatusCode.OK, JsonData.ok("followed"))
-        }
-
-        // DELETE /users/{userId}/follow
-        delete("/users/{userId}/follow") {
-            val principal = call.customerPrincipal()
-            val targetId =
-                call.parameters["userId"]?.toLongOrNull()
-                    ?: throw lab.gabon.model.AppException(
-                        lab.gabon.model.AppError
-                            .BadRequest("invalid user id"),
-                    )
-
-            socialService.unfollow(principal.customerId, targetId)
-            call.respond(HttpStatusCode.OK, JsonData.ok("unfollowed"))
-        }
-
-        // GET /users/me/following
-        get("/users/me/following") {
-            val principal = call.customerPrincipal()
-            val page = call.parameters["page"]?.toIntOrNull() ?: 1
-            val pageSize = call.parameters["page_size"]?.toIntOrNull() ?: 10
-
-            val (items, total) =
-                socialService.getFollowing(
-                    userId = principal.customerId,
-                    page = page,
-                    pageSize = pageSize,
-                    viewerId = principal.customerId,
-                )
-
-            call.respond(
-                HttpStatusCode.OK,
-                JsonData.ok(Paginated(items.map { it.toDto() }, total, page, pageSize)),
-            )
-        }
-
-        // GET /users/me/followers
-        get("/users/me/followers") {
-            val principal = call.customerPrincipal()
-            val page = call.parameters["page"]?.toIntOrNull() ?: 1
-            val pageSize = call.parameters["page_size"]?.toIntOrNull() ?: 10
-
-            val (items, total) =
-                socialService.getFollowers(
-                    userId = principal.customerId,
-                    page = page,
-                    pageSize = pageSize,
-                    viewerId = principal.customerId,
-                )
-
-            call.respond(
-                HttpStatusCode.OK,
-                JsonData.ok(Paginated(items.map { it.toDto() }, total, page, pageSize)),
-            )
-        }
-    }
-
     // ── Public routes (optional auth for follow_status) ─────
     authenticate("customer", optional = true) {
         // GET /users/{userId} — public profile
@@ -207,6 +136,80 @@ fun Route.socialRoutes(
                     page = page,
                     pageSize = pageSize,
                     viewerId = viewerId,
+                )
+
+            call.respond(
+                HttpStatusCode.OK,
+                JsonData.ok(Paginated(items.map { it.toDto() }, total, page, pageSize)),
+            )
+        }
+    }
+}
+
+/** Authenticated social routes: follow/unfollow, my lists (user rate limit group). */
+@Suppress("ThrowsCount")
+fun Route.socialAuthRoutes(socialService: SocialService) {
+    authenticate("customer") {
+        // POST /users/{userId}/follow
+        post("/users/{userId}/follow") {
+            val principal = call.customerPrincipal()
+            val targetId =
+                call.parameters["userId"]?.toLongOrNull()
+                    ?: throw lab.gabon.model.AppException(
+                        lab.gabon.model.AppError
+                            .BadRequest("invalid user id"),
+                    )
+
+            socialService.follow(principal.customerId, targetId)
+            call.respond(HttpStatusCode.OK, JsonData.ok("followed"))
+        }
+
+        // DELETE /users/{userId}/follow
+        delete("/users/{userId}/follow") {
+            val principal = call.customerPrincipal()
+            val targetId =
+                call.parameters["userId"]?.toLongOrNull()
+                    ?: throw lab.gabon.model.AppException(
+                        lab.gabon.model.AppError
+                            .BadRequest("invalid user id"),
+                    )
+
+            socialService.unfollow(principal.customerId, targetId)
+            call.respond(HttpStatusCode.OK, JsonData.ok("unfollowed"))
+        }
+
+        // GET /users/me/following
+        get("/users/me/following") {
+            val principal = call.customerPrincipal()
+            val page = call.parameters["page"]?.toIntOrNull() ?: 1
+            val pageSize = call.parameters["page_size"]?.toIntOrNull() ?: 10
+
+            val (items, total) =
+                socialService.getFollowing(
+                    userId = principal.customerId,
+                    page = page,
+                    pageSize = pageSize,
+                    viewerId = principal.customerId,
+                )
+
+            call.respond(
+                HttpStatusCode.OK,
+                JsonData.ok(Paginated(items.map { it.toDto() }, total, page, pageSize)),
+            )
+        }
+
+        // GET /users/me/followers
+        get("/users/me/followers") {
+            val principal = call.customerPrincipal()
+            val page = call.parameters["page"]?.toIntOrNull() ?: 1
+            val pageSize = call.parameters["page_size"]?.toIntOrNull() ?: 10
+
+            val (items, total) =
+                socialService.getFollowers(
+                    userId = principal.customerId,
+                    page = page,
+                    pageSize = pageSize,
+                    viewerId = principal.customerId,
                 )
 
             call.respond(

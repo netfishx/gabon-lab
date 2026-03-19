@@ -61,7 +61,7 @@ class AdminService(
         }
 
         val role = claims.role ?: throw AppException(AppError.TokenInvalid("missing role"))
-        val newTokenPair = jwtService.generateAdminTokens(claims.userId, role)
+        val newTokenPair = jwtService.generateAdminTokens(claims.userId, role, claims.familyId)
 
         val casResult =
             tokenStore.casFamily(

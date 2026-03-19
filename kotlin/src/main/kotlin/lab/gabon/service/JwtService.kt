@@ -47,8 +47,11 @@ class JwtService(
             .withAudience(ADMIN_AUDIENCE)
             .build()
 
-    fun generateCustomerTokens(customerId: Long): TokenPair {
-        val familyId = UUID.randomUUID().toString()
+    fun generateCustomerTokens(
+        customerId: Long,
+        existingFamilyId: String? = null,
+    ): TokenPair {
+        val familyId = existingFamilyId ?: UUID.randomUUID().toString()
         val accessJti = UUID.randomUUID().toString()
         val refreshJti = UUID.randomUUID().toString()
         val now = System.currentTimeMillis()
@@ -87,8 +90,9 @@ class JwtService(
     fun generateAdminTokens(
         adminId: Long,
         role: String,
+        existingFamilyId: String? = null,
     ): TokenPair {
-        val familyId = UUID.randomUUID().toString()
+        val familyId = existingFamilyId ?: UUID.randomUUID().toString()
         val accessJti = UUID.randomUUID().toString()
         val refreshJti = UUID.randomUUID().toString()
         val now = System.currentTimeMillis()

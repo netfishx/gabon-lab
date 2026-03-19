@@ -10,11 +10,13 @@ import lab.gabon.model.JsonData
 import lab.gabon.repository.CustomerRepo
 import lab.gabon.route.adminRoutes
 import lab.gabon.route.authRoutes
-import lab.gabon.route.socialRoutes
+import lab.gabon.route.socialAuthRoutes
+import lab.gabon.route.socialPublicRoutes
 import lab.gabon.route.taskRoutes
 import lab.gabon.route.userRoutes
 import lab.gabon.route.userVideoRoutes
-import lab.gabon.route.videoRoutes
+import lab.gabon.route.videoAuthRoutes
+import lab.gabon.route.videoPublicRoutes
 import lab.gabon.service.AdminService
 import lab.gabon.service.AuthService
 import lab.gabon.service.ReportService
@@ -51,17 +53,21 @@ fun Application.configureRouting(
                     authRoutes(authService)
                 }
 
-                // Public routes: 120/min by IP
+                // Public routes: 120/min by IP (read-only, optional auth)
                 rateLimit(rateLimiter, RateLimitConfig("pub", PUBLIC_RATE_LIMIT, keyType = KeyType.IP)) {
-                    socialRoutes(socialService, customerRepo)
+                    socialPublicRoutes(socialService, customerRepo)
                     if (videoService != null) {
-                        videoRoutes(videoService)
+                        videoPublicRoutes(videoService)
                         userVideoRoutes(videoService)
                     }
                 }
 
-                // User routes: 200/min by customer_id
+                // User routes: 200/min by customer_id (authenticated write operations)
                 rateLimit(rateLimiter, RateLimitConfig("user", USER_RATE_LIMIT, keyType = KeyType.CUSTOMER_ID)) {
+                    socialAuthRoutes(socialService)
+                    if (videoService != null) {
+                        videoAuthRoutes(videoService)
+                    }
                     if (userService != null) {
                         userRoutes(userService)
                     }
@@ -72,9 +78,11 @@ fun Application.configureRouting(
             } else {
                 // No rate limiter (e.g. in tests that don't need it)
                 authRoutes(authService)
-                socialRoutes(socialService, customerRepo)
+                socialPublicRoutes(socialService, customerRepo)
+                socialAuthRoutes(socialService)
                 if (videoService != null) {
-                    videoRoutes(videoService)
+                    videoPublicRoutes(videoService)
+                    videoAuthRoutes(videoService)
                     userVideoRoutes(videoService)
                 }
                 if (userService != null) {
