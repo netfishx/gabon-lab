@@ -20,4 +20,8 @@ public final class AdminRequests {
   public record UpdateAdminRequest(String fullName, String phone, Short role, Short status) {}
 
   public record ResetPasswordRequest(@NotBlank String newPassword) {}
+
+  public record ReviewVideoRequest(short status, String reviewNotes) {}
+
+  public record ResetCustomerPasswordRequest(@NotBlank String newPassword) {}
 }

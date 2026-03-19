@@ -58,4 +58,17 @@ public interface TaskProgressRepository extends CrudRepository<TaskProgress, Lon
       """)
   void upsertProgress(
       long customerId, long taskId, int targetCount, String periodKey, int rewardDiamonds);
+
+  // -- Report queries ---------------------------------------------------------
+
+  @Query(
+      """
+      SELECT DATE(claimed_at) AS report_date, SUM(reward_diamonds) AS total
+      FROM task_progress
+      WHERE task_status = 3
+          AND DATE(claimed_at) >= :startDate AND DATE(claimed_at) <= :endDate
+      GROUP BY DATE(claimed_at)
+      ORDER BY report_date
+      """)
+  List<Object[]> revenueReport(String startDate, String endDate);
 }

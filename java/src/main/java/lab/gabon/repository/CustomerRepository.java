@@ -1,5 +1,6 @@
 package lab.gabon.repository;
 
+import java.util.List;
 import java.util.Optional;
 import lab.gabon.model.entity.Customer;
 import org.springframework.data.jdbc.repository.query.Modifying;
@@ -48,4 +49,26 @@ public interface CustomerRepository extends CrudRepository<Customer, Long> {
       "UPDATE customers SET diamond_balance = diamond_balance + :amount, updated_at = NOW()"
           + " WHERE id = :id")
   void updateDiamondBalance(long id, long amount);
+
+  // -- Admin queries ----------------------------------------------------------
+
+  @Query(
+      """
+      SELECT * FROM customers
+      WHERE deleted_at IS NULL
+          AND (:search IS NULL OR (LOWER(username) LIKE LOWER(CONCAT('%', :search, '%'))
+               OR LOWER(name) LIKE LOWER(CONCAT('%', :search, '%'))))
+      ORDER BY id DESC
+      LIMIT :limit OFFSET :offset
+      """)
+  List<Customer> searchCustomers(String search, int limit, int offset);
+
+  @Query(
+      """
+      SELECT COUNT(*) FROM customers
+      WHERE deleted_at IS NULL
+          AND (:search IS NULL OR (LOWER(username) LIKE LOWER(CONCAT('%', :search, '%'))
+               OR LOWER(name) LIKE LOWER(CONCAT('%', :search, '%'))))
+      """)
+  long countSearchCustomers(String search);
 }
