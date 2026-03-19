@@ -10,10 +10,12 @@ import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import lab.gabon.model.JsonData
 import lab.gabon.model.Paginated
 import lab.gabon.plugin.CustomerPrincipal
+import lab.gabon.plugin.JsonPreserve
 import lab.gabon.plugin.customerPrincipal
 import lab.gabon.repository.VideoListRow
 import lab.gabon.service.PresignResult
@@ -24,16 +26,16 @@ import lab.gabon.service.VideoService
 
 @Serializable
 data class PresignUploadRequest(
-    val fileName: String,
-    val contentType: String,
+    @JsonPreserve @SerialName("fileName") val fileName: String,
+    @JsonPreserve @SerialName("contentType") val contentType: String,
 )
 
 @Serializable
 data class ConfirmUploadRequest(
-    val s3Key: String,
-    val fileName: String,
-    val fileSize: Long,
-    val mimeType: String,
+    @JsonPreserve @SerialName("s3Key") val s3Key: String,
+    @JsonPreserve @SerialName("fileName") val fileName: String,
+    @JsonPreserve @SerialName("fileSize") val fileSize: Long,
+    @JsonPreserve @SerialName("mimeType") val mimeType: String,
     val title: String? = null,
     val description: String? = null,
 )
@@ -42,14 +44,14 @@ data class ConfirmUploadRequest(
 
 @Serializable
 data class PresignResultDto(
-    val uploadUrl: String,
-    val fileUrl: String,
-    val s3Key: String,
+    @JsonPreserve @SerialName("uploadUrl") val uploadUrl: String,
+    @JsonPreserve @SerialName("fileUrl") val fileUrl: String,
+    @JsonPreserve @SerialName("s3Key") val s3Key: String,
 )
 
 @Serializable
 data class ConfirmUploadDto(
-    val videoId: Long,
+    @JsonPreserve @SerialName("videoId") val videoId: Long,
     val status: Short,
 )
 

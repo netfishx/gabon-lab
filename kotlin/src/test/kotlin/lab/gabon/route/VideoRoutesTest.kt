@@ -22,7 +22,6 @@ import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonNamingStrategy
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.int
@@ -32,6 +31,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import lab.gabon.config.JwtConfig
 import lab.gabon.config.S3Config
 import lab.gabon.model.VideoStatus
+import lab.gabon.plugin.PreserveAwareSnakeCase
 import lab.gabon.plugin.configureAuthentication
 import lab.gabon.plugin.configureErrorHandling
 import lab.gabon.plugin.configureRouting
@@ -170,7 +170,7 @@ class VideoRoutesTest {
             install(ContentNegotiation) {
                 json(
                     Json {
-                        namingStrategy = JsonNamingStrategy.SnakeCase
+                        namingStrategy = PreserveAwareSnakeCase
                         ignoreUnknownKeys = true
                     },
                 )
@@ -203,9 +203,9 @@ class VideoRoutesTest {
             assertEquals(0, body["code"]?.jsonPrimitive?.int)
             val data = body["data"]?.jsonObject
             assertNotNull(data)
-            assertNotNull(data["upload_url"]?.jsonPrimitive?.content)
-            assertNotNull(data["file_url"]?.jsonPrimitive?.content)
-            val s3Key = data["s3_key"]?.jsonPrimitive?.content
+            assertNotNull(data["uploadUrl"]?.jsonPrimitive?.content)
+            assertNotNull(data["fileUrl"]?.jsonPrimitive?.content)
+            val s3Key = data["s3Key"]?.jsonPrimitive?.content
             assertNotNull(s3Key)
             // s3Key should follow pattern: {customerId}/{uuid}.mp4
             assertTrue(s3Key.startsWith("1/"), "s3Key should start with customerId: $s3Key")
@@ -262,7 +262,7 @@ class VideoRoutesTest {
             assertEquals(0, body["code"]?.jsonPrimitive?.int)
             val data = body["data"]?.jsonObject
             assertNotNull(data)
-            assertEquals(42, data["video_id"]?.jsonPrimitive?.int)
+            assertEquals(42, data["videoId"]?.jsonPrimitive?.int)
             assertEquals(3, data["status"]?.jsonPrimitive?.int)
 
             coVerify {
@@ -301,7 +301,7 @@ class VideoRoutesTest {
             assertNotNull(data)
             assertEquals(3, data["total"]?.jsonPrimitive?.int)
             assertEquals(1, data["page"]?.jsonPrimitive?.int)
-            assertEquals(20, data["page_size"]?.jsonPrimitive?.int)
+            assertEquals(20, data["pageSize"]?.jsonPrimitive?.int)
             val itemsArray = data["items"]?.jsonArray
             assertNotNull(itemsArray)
             assertEquals(3, itemsArray.size)

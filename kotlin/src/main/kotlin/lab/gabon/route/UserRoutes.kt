@@ -9,8 +9,10 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.put
 import io.ktor.server.routing.route
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import lab.gabon.model.JsonData
+import lab.gabon.plugin.JsonPreserve
 import lab.gabon.plugin.customerPrincipal
 import lab.gabon.service.AvatarPresignResult
 import lab.gabon.service.MyProfile
@@ -28,13 +30,13 @@ data class UpdateProfileRequest(
 
 @Serializable
 data class AvatarPresignRequest(
-    val fileName: String,
-    val contentType: String,
+    @JsonPreserve @SerialName("fileName") val fileName: String,
+    @JsonPreserve @SerialName("contentType") val contentType: String,
 )
 
 @Serializable
 data class AvatarConfirmRequest(
-    val avatarUrl: String,
+    @JsonPreserve @SerialName("avatarUrl") val avatarUrl: String,
 )
 
 // -- Response DTOs --
@@ -56,8 +58,8 @@ data class MyProfileDto(
 
 @Serializable
 data class AvatarPresignDto(
-    val uploadUrl: String,
-    val avatarUrl: String,
+    @JsonPreserve @SerialName("uploadUrl") val uploadUrl: String,
+    @JsonPreserve @SerialName("avatarUrl") val avatarUrl: String,
 )
 
 // -- Route Registration --

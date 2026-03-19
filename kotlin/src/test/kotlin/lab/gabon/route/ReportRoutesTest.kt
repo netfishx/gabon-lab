@@ -12,7 +12,6 @@ import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonNamingStrategy
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
@@ -20,6 +19,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
 import lab.gabon.config.JwtConfig
+import lab.gabon.plugin.PreserveAwareSnakeCase
 import lab.gabon.plugin.configureAuthentication
 import lab.gabon.plugin.configureErrorHandling
 import lab.gabon.plugin.configureRouting
@@ -90,7 +90,7 @@ class ReportRoutesTest {
             install(ContentNegotiation) {
                 json(
                     Json {
-                        namingStrategy = JsonNamingStrategy.SnakeCase
+                        namingStrategy = PreserveAwareSnakeCase
                         ignoreUnknownKeys = true
                     },
                 )

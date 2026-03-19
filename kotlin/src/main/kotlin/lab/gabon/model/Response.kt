@@ -1,6 +1,8 @@
 package lab.gabon.model
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import lab.gabon.plugin.JsonPreserve
 
 /** Unified API response envelope. code=0 means success, otherwise error. */
 @Serializable
@@ -34,5 +36,5 @@ data class Paginated<T>(
     val items: List<T>,
     val total: Long,
     val page: Int,
-    val pageSize: Int,
+    @JsonPreserve @SerialName("pageSize") val pageSize: Int,
 )

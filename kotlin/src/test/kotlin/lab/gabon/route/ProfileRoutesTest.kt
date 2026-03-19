@@ -21,7 +21,6 @@ import io.mockk.mockk
 import kotlinx.datetime.Clock
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonNamingStrategy
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.int
@@ -30,6 +29,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
 import lab.gabon.config.JwtConfig
 import lab.gabon.config.S3Config
+import lab.gabon.plugin.PreserveAwareSnakeCase
 import lab.gabon.plugin.configureAuthentication
 import lab.gabon.plugin.configureErrorHandling
 import lab.gabon.plugin.configureRouting
@@ -130,7 +130,7 @@ class ProfileRoutesTest {
             install(ContentNegotiation) {
                 json(
                     Json {
-                        namingStrategy = JsonNamingStrategy.SnakeCase
+                        namingStrategy = PreserveAwareSnakeCase
                         ignoreUnknownKeys = true
                     },
                 )
@@ -256,8 +256,8 @@ class ProfileRoutesTest {
             assertEquals(HttpStatusCode.OK, response.status)
             val data = response.body<JsonObject>()["data"]?.jsonObject
             assertNotNull(data)
-            val uploadUrl = data["upload_url"]?.jsonPrimitive?.content
-            val avatarUrl = data["avatar_url"]?.jsonPrimitive?.content
+            val uploadUrl = data["uploadUrl"]?.jsonPrimitive?.content
+            val avatarUrl = data["avatarUrl"]?.jsonPrimitive?.content
             assertNotNull(uploadUrl)
             assertNotNull(avatarUrl)
             // Avatar URL should contain the avatars prefix

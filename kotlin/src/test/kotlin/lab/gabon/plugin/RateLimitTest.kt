@@ -17,11 +17,11 @@ import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonNamingStrategy
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonPrimitive
 import lab.gabon.model.JsonData
+import lab.gabon.plugin.PreserveAwareSnakeCase
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -48,7 +48,7 @@ class RateLimitTest {
             install(ContentNegotiation) {
                 json(
                     Json {
-                        namingStrategy = JsonNamingStrategy.SnakeCase
+                        namingStrategy = PreserveAwareSnakeCase
                         ignoreUnknownKeys = true
                     },
                 )

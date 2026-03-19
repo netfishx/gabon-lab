@@ -11,6 +11,7 @@ import lab.gabon.repository.RevenueReportRow
 import lab.gabon.repository.VideoDailyReportRow
 import lab.gabon.repository.VideoSummaryReportRow
 import lab.gabon.service.ReportService
+import java.time.LocalDate
 
 // ── Response DTOs ───────────────────────────────────────────
 
@@ -43,21 +44,19 @@ data class VideoSummaryReportDto(
 
 // ── Route Registration ──────────────────────────────────────
 
+/** Default date range: last 30 days (matching Go's parseDateRange behavior). */
+private fun defaultDateRange(): Pair<String, String> {
+    val today = LocalDate.now()
+    val start = today.minusDays(30)
+    return start.toString() to today.toString()
+}
+
 fun Route.reportRoutes(reportService: ReportService) {
     route("/reports") {
         get("/revenue") {
-            val startDate =
-                call.queryParameters["start_date"]
-                    ?: return@get call.respond(
-                        HttpStatusCode.BadRequest,
-                        JsonData.error(400, "start_date is required"),
-                    )
-            val endDate =
-                call.queryParameters["end_date"]
-                    ?: return@get call.respond(
-                        HttpStatusCode.BadRequest,
-                        JsonData.error(400, "end_date is required"),
-                    )
+            val (defaultStart, defaultEnd) = defaultDateRange()
+            val startDate = call.queryParameters["start_date"] ?: defaultStart
+            val endDate = call.queryParameters["end_date"] ?: defaultEnd
 
             val rows = reportService.revenueReport(startDate, endDate)
             call.respond(HttpStatusCode.OK, JsonData.ok(rows.map { it.toDto() }))
@@ -65,36 +64,18 @@ fun Route.reportRoutes(reportService: ReportService) {
 
         route("/video") {
             get("/daily") {
-                val startDate =
-                    call.queryParameters["start_date"]
-                        ?: return@get call.respond(
-                            HttpStatusCode.BadRequest,
-                            JsonData.error(400, "start_date is required"),
-                        )
-                val endDate =
-                    call.queryParameters["end_date"]
-                        ?: return@get call.respond(
-                            HttpStatusCode.BadRequest,
-                            JsonData.error(400, "end_date is required"),
-                        )
+                val (defaultStart, defaultEnd) = defaultDateRange()
+                val startDate = call.queryParameters["start_date"] ?: defaultStart
+                val endDate = call.queryParameters["end_date"] ?: defaultEnd
 
                 val rows = reportService.videoDailyReport(startDate, endDate)
                 call.respond(HttpStatusCode.OK, JsonData.ok(rows.map { it.toDto() }))
             }
 
             get("/summary") {
-                val startDate =
-                    call.queryParameters["start_date"]
-                        ?: return@get call.respond(
-                            HttpStatusCode.BadRequest,
-                            JsonData.error(400, "start_date is required"),
-                        )
-                val endDate =
-                    call.queryParameters["end_date"]
-                        ?: return@get call.respond(
-                            HttpStatusCode.BadRequest,
-                            JsonData.error(400, "end_date is required"),
-                        )
+                val (defaultStart, defaultEnd) = defaultDateRange()
+                val startDate = call.queryParameters["start_date"] ?: defaultStart
+                val endDate = call.queryParameters["end_date"] ?: defaultEnd
 
                 val summary = reportService.videoSummaryReport(startDate, endDate)
                 call.respond(HttpStatusCode.OK, JsonData.ok(summary.toDto()))
