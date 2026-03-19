@@ -9,14 +9,25 @@ Implement Redis ZSET sliding window rate limiter as a Ktor route-scoped plugin t
 
 Key implementation areas:
 
-- **Sliding Window Algorithm** (Redis ZSET):
-  1. Key format: `rate:{group}:{identifier}` (e.g., `rate:auth:10.0.0.1`, `rate:user:42`).
-  2. On each request: `ZREMRANGEBYSCORE key 0 (now - window)` to remove expired entries.
-  3. `ZCARD key` to count current window entries.
-  4. If count >= limit, reject with 429.
-  5. Otherwise, `ZADD key now now` to record the request.
-  6. `EXPIRE key window` to auto-cleanup.
-  7. Execute steps 2-6 as a Redis pipeline for atomicity.
+- **Sliding Window Algorithm** (Redis ZSET + Lua script for atomicity):
+  1. Key format: `rl:{group}:{identifier}` (e.g., `rl:auth:10.0.0.1`, `rl:user:42`).
+  2. **MUST use a Lua script** (not pipeline) to guarantee atomicity under concurrent requests. A pipeline only batches commands — it does NOT prevent interleaving between concurrent clients. Two requests could both pass ZCARD before either executes ZADD, causing over-admission.
+  3. Lua script logic (single atomic EVAL):
+     ```
+     KEYS[1] = rate limit key
+     ARGV[1] = window start timestamp (now - window)
+     ARGV[2] = current timestamp (unique per request, e.g., now_micros + random suffix)
+     ARGV[3] = window TTL in seconds
+     ARGV[4] = limit
+
+     redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', ARGV[1])
+     redis.call('ZADD', KEYS[1], ARGV[2], ARGV[2])
+     local count = redis.call('ZCARD', KEYS[1])
+     redis.call('EXPIRE', KEYS[1], ARGV[3])
+     return count
+     ```
+  4. If returned count > limit, reject with 429 (the ZADD already happened, but that's fine — it will expire within the window and the count is correct for subsequent requests).
+  5. This matches the Go implementation's approach (Redis atomic operation for concurrency safety).
 
 - **Rate Limit Groups** (4 configurations):
   | Group | Limit | Window | Key | Applies To |

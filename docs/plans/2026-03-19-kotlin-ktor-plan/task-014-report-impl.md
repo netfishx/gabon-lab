@@ -14,17 +14,17 @@ Key implementation areas:
   - SQL: `GROUP BY DATE(claimed_at)`, aggregate `COUNT(*)` as `claim_count` and `SUM(reward_diamonds)` as `total_diamonds` from task_progress where `task_status=3` (claimed).
   - Response: list of `{ date, claim_count, total_diamonds }`.
 
-- **Video Daily Report** (`GET /admin/v1/reports/videos/daily`):
+- **Video Daily Report** (`GET /admin/v1/reports/video/daily`):
   - Query parameters: `start_date`, `end_date` (date range filter on `created_at`).
   - SQL: `GROUP BY DATE(created_at)`, aggregate `COUNT(*)` as `upload_count`, `SUM(total_clicks)`, `SUM(valid_clicks)`, `SUM(like_count)`.
   - Response: list of `{ date, upload_count, total_clicks, total_valid_clicks, total_likes }`.
 
-- **Video Summary Report** (`GET /admin/v1/reports/videos/summary`):
+- **Video Summary Report** (`GET /admin/v1/reports/video/summary`):
   - Query parameters: `start_date`, `end_date` (date range filter on `created_at`).
   - SQL: single-row aggregate -- `COUNT(*)` as `total_videos`, conditional counts for `approved_count` (status=4), `pending_count` (status=3), `rejected_count` (status=5), plus `SUM` of click/like columns.
   - Response: single object `{ total_videos, approved_count, pending_count, rejected_count, total_clicks, total_valid_clicks, total_likes }`.
 
-- **Route paths**: `/admin/v1/reports/revenue`, `/admin/v1/reports/videos/daily`, `/admin/v1/reports/videos/summary`. Note: paths use `/reports/videos/` (plural), not `/reports/video/`.
+- **Route paths**: `/admin/v1/reports/revenue`, `/admin/v1/reports/video/daily`, `/admin/v1/reports/video/summary`. Note: paths use `/reports/video/` (plural), not `/reports/video/`.
 
 - All endpoints require admin authentication.
 

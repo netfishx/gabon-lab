@@ -28,9 +28,9 @@ All queries use Exposed DSL against the customers table defined in Task 003.
 
 ### JWT Token Generation
 
-- Access token: iss=gabon-service, aud=customer, sub=customerId, token_type=access, jti=UUID, exp=15min
-- Refresh token: iss=gabon-service, aud=customer, sub=customerId, token_type=refresh, jti=UUID, family_id=UUID, exp=7days
-- Sign with HS256 using secret from config (JWT_SECRET env var)
+- Access token: iss=gabon-service, aud=customer, sub=customerId, token_type=access, jti=UUID, kid=JWT_CURRENT_KID, exp=JWT_CUSTOMER_ACCESS_TTL
+- Refresh token: iss=gabon-service, aud=customer, sub=customerId, token_type=refresh, jti=UUID, family_id=UUID, kid=JWT_CURRENT_KID, exp=JWT_CUSTOMER_REFRESH_TTL
+- Sign with HS256 using JWT_CUSTOMER_SECRET (from Task 005 dual-domain JwtService). Admin tokens use JWT_ADMIN_SECRET with iss=gabon-admin, aud=admin.
 
 ### Auth Routes (route/AuthRoutes.kt)
 

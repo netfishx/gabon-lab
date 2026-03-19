@@ -26,7 +26,14 @@ Key decisions:
 
 - **Request models** (`model/Request.kt`): define `@Serializable data class PageQuery(val page: Int = 1, val pageSize: Int = 10)` as a shared pagination parameter type.
 
-- **Constants** (`model/Constants.kt`): define `enum class VideoStatus(val value: Int)` with PENDING(0), APPROVED(1), REJECTED(2). Define `enum class TaskType(val value: String)` with SIGN_IN, WATCH_VIDEO, LIKE_VIDEO, FOLLOW_USER. Define `enum class TaskStatus(val value: Int)` with INCOMPLETE(0), COMPLETE(1), REWARDED(2). Define bucket name constants.
+- **Constants** (`model/Constants.kt`): define enums matching Go's `model/constants.go` exactly:
+  - `enum class VideoStatus(val value: Short)` — FAILED(0), PENDING_ENCODE(1), ENCODING(2), PENDING_REVIEW(3), APPROVED(4), REJECTED(5)
+  - `enum class PlayType(val value: Short)` — CLICK(1), VALID_PLAY(2)
+  - `enum class AdminStatus(val value: Short)` — DISABLED(0), ACTIVE(1)
+  - `enum class AdminRole(val value: Short)` — SUPERADMIN(1), ADMIN(2)
+  - `enum class TaskType(val value: Short)` — DAILY(1), WEEKLY(2), MONTHLY(3)
+  - `enum class TaskStatus(val value: Short)` — IN_PROGRESS(1), COMPLETED(2), CLAIMED(3), EXPIRED(4)
+  - Bucket name constants: `BUCKET_VIDEOS = "gabon-videos"`, `BUCKET_AVATARS = "gabon-avatars"`
 
 - **Serialization plugin** (`plugin/Serialization.kt`): install `ContentNegotiation` with `json { namingStrategy = JsonNamingStrategy.SnakeCase; ignoreUnknownKeys = true; encodeDefaults = true }`.
 

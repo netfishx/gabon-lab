@@ -13,7 +13,7 @@ Implement user profile management covering BDD Feature 10. This is the Green pha
 - `updateProfile(customerId, name?, phone?, email?, signature?)`: Update only non-null, non-empty fields. Use the COALESCE NULLIF pattern in SQL: `UPDATE customers SET name = COALESCE(NULLIF(?, ''), name), phone = COALESCE(NULLIF(?, ''), phone), ... WHERE id = ?`. This ensures empty strings do not overwrite existing values. Return updated customer.
 - `presignAvatarUpload(customerId, fileName, contentType)`: Generate S3 key as `avatars/{customerId}/{uuid}.{ext}`. Create presigned PUT URL. Return uploadUrl and avatarUrl (the permanent access URL).
 - `confirmAvatarUpload(customerId, avatarUrl)`: UPDATE customers SET avatar_url = ? WHERE id = ?. Return success.
-- `getPublicProfile(userId, viewerId?)`: Fetch customer by ID. If not found, throw 404 NOT_FOUND. Query following_count and follower_count from user_follows. Compute follow_status via SocialService (or direct repo call). Return public fields: id, username, name, avatar_url, signature, is_vip, following_count, follower_count, follow_status.
+- **NOTE**: `getPublicProfile` / `GET /api/v1/users/{userId}` is implemented in Task 010 (SocialRoutes), NOT here. This avoids the circular dependency between social (needs public profile endpoint for follow_status tests) and profile (needs SocialService for follow counts).
 
 ### CustomerRepo Extensions
 
@@ -29,10 +29,7 @@ Authenticated:
 - `POST /api/v1/users/me/avatar/upload-url` -- presign avatar upload
 - `POST /api/v1/users/me/avatar/confirm` -- confirm avatar uploaded
 
-Public (optional auth for follow_status):
-- `GET /api/v1/users/{userId}` -- get public profile with follow counts and follow_status
-
-Register user routes in `plugin/Routing.kt`. Note that `GET /api/v1/users/{userId}` is also used by social tests for follow_status verification, so this route must extract optional auth (if Authorization header present, decode it for viewerId; otherwise viewerId=null).
+Register user routes in `plugin/Routing.kt`. Note: `GET /api/v1/users/{userId}` (public profile) is in Task 010 SocialRoutes.
 
 ### COALESCE NULLIF Pattern
 
@@ -48,9 +45,9 @@ WHERE id = $5
 
 `NULLIF(value, '')` returns NULL if value is empty string. `COALESCE(NULL, name)` falls back to the existing column value. This is a single-query partial update without conditional logic in Kotlin.
 
-### Integration with SocialService
+### Dependency Note
 
-The public profile endpoint depends on SocialService (from Task 010) for follow_status and follow counts. If Task 010 is not yet implemented when this task runs, use a fallback: return follow_status=0 and counts=0, and add a TODO comment. The profile tests should still pass for the non-social scenarios.
+This task has NO dependency on Task 010 (Social). The public profile endpoint (`GET /users/{userId}`) with follow_status is handled by Task 010. This task only handles `/users/me/*` private endpoints.
 
 ## Files
 

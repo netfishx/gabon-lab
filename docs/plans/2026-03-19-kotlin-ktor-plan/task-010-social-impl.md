@@ -38,7 +38,7 @@ Public (optional auth for follow_status):
 - `GET /api/v1/users/{userId}/following` -- user's following list
 - `GET /api/v1/users/{userId}/followers` -- user's followers list
 
-The GET /api/v1/users/{userId} endpoint (from Task 011 profile) will call SocialService.getFollowStatus to include follow_status in the response. For now, ensure the service method is available.
+**IMPORTANT**: The `GET /api/v1/users/{userId}` public profile endpoint is implemented HERE (not in Task 011) to avoid a circular dependency. This endpoint returns: id, username, name, avatar_url, signature, is_vip, following_count, follower_count, follow_status. It queries CustomerRepo.findById for basic fields and SocialRepo for counts + follow_status. Task 011 only handles `/users/me/*` endpoints (private profile, update, avatar).
 
 Register social routes in `plugin/Routing.kt`.
 

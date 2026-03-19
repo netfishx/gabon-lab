@@ -18,7 +18,7 @@ Key decisions:
   - `endpointUrl` from S3_ENDPOINT config
   - `region` from S3_REGION config (default "garage")
   - `forcePathStyle = true` — required for Garage compatibility (Garage does not support virtual-hosted-style)
-  - Static credentials from S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY
+  - Static credentials from S3_ACCESS_KEY and S3_SECRET_KEY
   For presigned URLs, use `S3Presigner` (or the SDK's presigning support) to generate time-limited PUT URLs.
 
 - **Stub mode**: if `S3_ENDPOINT` is blank or empty in config, do NOT create an S3 client. Instead, return mock URLs:
