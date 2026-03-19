@@ -124,6 +124,22 @@ fun Route.videoPublicRoutes(videoService: VideoService) {
             )
         }
 
+        // /videos/my MUST be registered before /{id} to avoid greedy path match
+        authenticate("customer") {
+            get("/my") {
+                val principal = call.customerPrincipal()
+                val page = call.queryParameters["page"]?.toIntOrNull() ?: 1
+                val pageSize = call.queryParameters["page_size"]?.toIntOrNull() ?: 10
+                val status = call.queryParameters["status"]?.toShortOrNull()
+
+                val (items, total) = videoService.listMyVideos(principal.customerId, page, pageSize, status)
+                call.respond(
+                    HttpStatusCode.OK,
+                    JsonData.ok(Paginated(items.map { it.toDto() }, total, page, pageSize)),
+                )
+            }
+        }
+
         // Optional auth routes (public, but extract principal if present)
         authenticate("customer", optional = true) {
             get("/{id}") {
@@ -219,18 +235,7 @@ fun Route.videoAuthRoutes(videoService: VideoService) {
                 )
             }
 
-            get("/me") {
-                val principal = call.customerPrincipal()
-                val page = call.queryParameters["page"]?.toIntOrNull() ?: 1
-                val pageSize = call.queryParameters["page_size"]?.toIntOrNull() ?: 10
-                val status = call.queryParameters["status"]?.toShortOrNull()
-
-                val (items, total) = videoService.listMyVideos(principal.customerId, page, pageSize, status)
-                call.respond(
-                    HttpStatusCode.OK,
-                    JsonData.ok(Paginated(items.map { it.toDto() }, total, page, pageSize)),
-                )
-            }
+            // NOTE: GET /videos/my is registered in videoPublicRoutes (before /{id})
 
             delete("/{id}") {
                 val principal = call.customerPrincipal()
