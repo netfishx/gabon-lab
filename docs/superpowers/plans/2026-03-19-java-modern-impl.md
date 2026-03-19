@@ -89,7 +89,7 @@ All files under `java/` unless noted. `~` = project root.
 | `src/.../repository/AdminUserRepository.java` | admin_users |
 | `src/.../repository/TaskDefinitionRepository.java` | task_definitions |
 | `src/.../repository/TaskProgressRepository.java` | task_progress |
-| `src/.../repository/CustomerSignInRecordRepository.java` | sign_in_records |
+| `src/.../repository/CustomerSignInRecordRepository.java` | customer_sign_in_records |
 
 ### Services
 | File | Responsibility |
@@ -569,7 +569,7 @@ codes matching Go), AppException, GlobalExceptionHandler."
 
 - [ ] **Step 1: Create `V001__init.sql`**
 
-Copy from `go/db/migrations/001_init.sql` (minus goose directives), and add the `sign_in_records` table. Use `IF NOT EXISTS` for idempotency since other implementations share the same PG database.
+Copy from `go/db/migrations/001_init.sql` (minus goose directives), and add `customer_sign_in_records` from `go/db/migrations/003_add_sign_in.sql`. Use `IF NOT EXISTS` for idempotency since other implementations share the same PG database.
 
 **Note:** The `customer_sign_in_records` table matches Go migration `003_add_sign_in.sql` exactly. All implementations share this table in the same PG database.
 
@@ -750,13 +750,14 @@ public record Customer(
 
 Create all 9 entity Records following this pattern. Each field maps 1:1 to the DB column (Spring Data JDBC uses snake_case → camelCase by default via `NamingStrategy`).
 
-Entity files: `AdminUser.java`, `Customer.java`, `Video.java`, `VideoPlayRecord.java`, `VideoLike.java`, `UserFollow.java`, `TaskDefinition.java`, `TaskProgress.java`, `SignInRecord.java`.
+Entity files: `AdminUser.java`, `Customer.java`, `Video.java`, `VideoPlayRecord.java`, `VideoLike.java`, `UserFollow.java`, `TaskDefinition.java`, `TaskProgress.java`, `CustomerSignInRecord.java`.
 
 Key mappings to get right:
 - `Video.status`: SMALLINT → `short` (1=pending, 3=review, 4=approved, 5=rejected)
 - `TaskProgress.taskStatus`: SMALLINT → `short` (1=in_progress, 2=completed, 3=claimed)
 - `AdminUser.role`: SMALLINT → `short` (1=superadmin, 2=admin)
-- `SignInRecord.signInDate`: DATE → `java.time.LocalDate`
+- `CustomerSignInRecord.periodKey`: VARCHAR → `String`
+- `CustomerSignInRecord.rewardDiamonds`: INT → `int`
 - All timestamps: TIMESTAMPTZ → `java.time.Instant`
 
 - [ ] **Step 3: Verify Flyway migration runs**
@@ -1941,7 +1942,7 @@ Test: claim task (not claimable — wrong status), period key generation (daily/
 
 - [ ] **Step 3: Create DTOs**
 
-`TaskResponses.java`: TaskItemResponse (taskId, taskCode, taskName, description, targetCount, currentCount, rewardDiamonds, status, periodKey), SignInResponse (date, streakDays)
+`TaskResponses.java`: TaskItemResponse (taskId, taskCode, taskName, description, targetCount, currentCount, rewardDiamonds, status, periodKey), SignInResponse (periodKey, rewardDiamonds)
 
 - [ ] **Step 4: Implement `TaskService.java`**
 
@@ -1964,8 +1965,8 @@ Key methods:
 `signIn(customerId)`:
 1. Check today's record exists → throw AlreadySignedIn
 2. Get yesterday's record for streak calculation
-3. Insert sign_in_record (streak_days = yesterday.streak + 1 or 1)
-4. Return SignInResponse
+3. Insert `customer_sign_in_records` row (period_key = today's date via `generatePeriodKey(DAILY, now)`, reward_diamonds from config)
+4. Return SignInResponse (periodKey, rewardDiamonds)
 
 - [ ] **Step 6: Implement controllers**
 
@@ -2316,6 +2317,7 @@ The old Java baseline (Maven, `com.gabon.*`, MySQL) is replaced. Repository docs
 **Files:**
 - Modify: `~/AGENTS.md`
 - Modify: `~/CLAUDE.md`
+- Modify: `~/README.md` (if it exists at repo root)
 - Modify: `~/.env.example`
 
 - [ ] **Step 1: Update `AGENTS.md`**
@@ -2329,23 +2331,44 @@ Replace all references to the old Java setup:
 
 - [ ] **Step 2: Update root `CLAUDE.md`**
 
-In the project CLAUDE.md:
-- Update the `java/` entry in 仓库结构 from "Java 实现 (Spring Boot + MyBatis-Plus + MySQL)" to "Java 实现 (Spring Boot 4.0 + Spring Data JDBC + PostgreSQL)"
-- Update 技术栈对比 table: Java column should reflect SB 4.0, Spring Data JDBC, PostgreSQL, Gradle
-- Add `JAVA_PORT=8082` to port table
-- Add `make dev-java / test-java / lint-java / migrate-java` to 常用命令
-- Remove any MySQL references from Java row (Java now shares PostgreSQL)
-- Update 评测结论速查 table with placeholder for new Java numbers
+In the project CLAUDE.md, make these specific changes:
 
-- [ ] **Step 3: Commit**
+**仓库结构 section:**
+- `java/` entry: "Java 实现 (Spring Boot + MyBatis-Plus + MySQL)" → "Java 实现 (Spring Boot 4.0 + Spring Data JDBC + PostgreSQL)"
+
+**技术栈对比 table:**
+- Java column: update to SB 4.0, Spring Data JDBC, PostgreSQL, Gradle, java-jwt, JUnit 5
+
+**服务端口 section:**
+- Add Java | 8082 | `/api/v1/`, `/admin/v1/`
+
+**常用命令:**
+- Add `make dev-java / test-java / lint-java / migrate-java`
+
+**设计约束 section — explicitly remove/update these lines:**
+- Remove: "Java 独立用 MySQL，schema 在 `java/gabon-service/src/main/resources/sql/`" (CLAUDE.md:108) — Java now shares PostgreSQL
+- Update: "API 设计各自独立" constraint if it exists — all four implementations now share PG and use `int code` envelope
+
+**评测结论速查 table:**
+- Update Java column with placeholder "(pending re-benchmark)"
+
+- [ ] **Step 3: Update `README.md`** (if it exists at repo root)
+
+Check `README.md` for old Java references (MySQL, Maven, independent API design). Update to reflect:
+- Java now uses PostgreSQL (shared), Spring Boot 4.0, Gradle
+- Java is wired into root Makefile
+- Remove MySQL from Java description
+
+- [ ] **Step 4: Commit**
 
 ```bash
-git add AGENTS.md CLAUDE.md
+git add AGENTS.md CLAUDE.md README.md .env.example
 git commit -m "docs: update repo-level docs for new Java implementation
 
 Replace old Java baseline (Maven, com.gabon.*, MySQL) with new
 Spring Boot 4.0 + Gradle + lab.gabon.* + PostgreSQL references
-in AGENTS.md and root CLAUDE.md."
+in AGENTS.md, root CLAUDE.md, and README.md.
+Remove obsolete MySQL/Maven design constraints."
 ```
 
 ---
