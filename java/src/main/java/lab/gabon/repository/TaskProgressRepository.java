@@ -46,4 +46,16 @@ public interface TaskProgressRepository extends CrudRepository<TaskProgress, Lon
       "UPDATE task_progress SET task_status = 3, claimed_at = NOW(), updated_at = NOW()"
           + " WHERE id = :id")
   void claimReward(long id);
+
+  @Modifying
+  @Query(
+      """
+      INSERT INTO task_progress (customer_id, task_id, target_count, period_key, reward_diamonds,
+          current_count, task_status, created_at, updated_at)
+      VALUES (:customerId, :taskId, :targetCount, :periodKey, :rewardDiamonds,
+          0, 1, NOW(), NOW())
+      ON CONFLICT (customer_id, task_id, period_key) DO NOTHING
+      """)
+  void upsertProgress(
+      long customerId, long taskId, int targetCount, String periodKey, int rewardDiamonds);
 }
