@@ -33,9 +33,10 @@ public class AuthService {
             });
 
     var hash = encoder.encode(password);
+    var now = java.time.Instant.now();
     var customer =
         new Customer(
-            null, username, hash, null, null, null, null, null, false, 0, null, null, null, null,
+            null, username, hash, null, null, null, null, null, false, 0, null, null, now, now,
             null);
     var saved = customerRepo.save(customer);
 
