@@ -86,8 +86,11 @@ data class AppConfig(
                 }.toMap()
         }
 
-        /** Parse Go-style duration strings: "15m", "168h", "30s", "1h30m" */
+        /** Parse duration: pure seconds ("900"), or Go-style ("15m", "168h", "1h30m") */
         private fun parseDuration(value: String): Duration {
+            // Pure numeric → treat as seconds
+            value.toLongOrNull()?.let { return it.seconds }
+
             val pattern = Regex("""(\d+)([hms])""")
             val matches = pattern.findAll(value).toList()
             require(matches.isNotEmpty()) { "Invalid duration format: $value" }
