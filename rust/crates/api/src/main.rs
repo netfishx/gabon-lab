@@ -70,8 +70,7 @@ async fn main() {
         config,
     };
 
-    let app = Router::new()
-        .route("/health", get(health))
+    let api_routes = Router::new()
         .route("/api/auth/register", post(auth::register))
         .route("/api/auth/login", post(auth::login))
         .route("/api/auth/me", get(auth::me))
@@ -131,7 +130,12 @@ async fn main() {
             state.clone(),
             rate_limit::rate_limit,
         ))
-        .with_state(state);
+        .with_state(state.clone());
+
+    // Health check outside rate limiter (matches Go/Kotlin behavior)
+    let app = Router::new()
+        .route("/health", get(health))
+        .merge(api_routes);
 
     tracing::info!("listening on {addr}");
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
