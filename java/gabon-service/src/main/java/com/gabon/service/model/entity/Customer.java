@@ -39,6 +39,10 @@ public class Customer extends BaseDO {
     @Schema(description = "钻石余额", example = "1000")
     private Long diamondBalance;
 
+    @TableField("frozen_diamond_balance")
+    @Schema(description = "冻结钻石余额", example = "300")
+    private Long frozenDiamondBalance;
+
     @Schema(description = "头像URL", example = "https://example.com/avatar.jpg")
     private String avatarUrl;
 

@@ -2,6 +2,7 @@ package com.gabon.admin.model.entity;
 
 import java.time.Instant;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.gabon.common.model.BaseDO;
 
@@ -57,6 +58,14 @@ public class Customer extends BaseDO {
      */
     @Schema(description = "客户头像URL | Customer Avatar URL", example = "https://example.com/avatar.jpg")
     private String avatarUrl;
+
+    @TableField("diamond_balance")
+    @Schema(description = "钻石余额 | Diamond Balance", example = "1000")
+    private Long diamondBalance;
+
+    @TableField("frozen_diamond_balance")
+    @Schema(description = "冻结钻石余额 | Frozen Diamond Balance", example = "300")
+    private Long frozenDiamondBalance;
 
     /**
      * 注册时间

@@ -1,6 +1,5 @@
 package com.gabon.service.service;
 
-import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.gabon.service.model.dto.PresignedUploadUrlRequest;
 import com.gabon.service.model.dto.VideoConfirmUploadRequest;
 import com.gabon.service.model.dto.VideoListRequest;
@@ -8,6 +7,8 @@ import com.gabon.service.model.entity.Video;
 import com.gabon.service.model.vo.PresignedUploadUrlVO;
 import com.gabon.service.model.vo.VideoDetailVO;
 import com.gabon.service.model.vo.VideoListItemVO;
+
+import com.baomidou.mybatisplus.core.metadata.IPage;
 
 import java.util.List;
 
@@ -64,13 +65,14 @@ public interface VideoService {
     /**
      * 获取首页视频列表
      *
-     * @param request 分页请求参数
-     * @return 视频列表分页结果
+     * @param request 请求参数（含 size、keyword、tags、excludeIds）
+     * @return 视频列表
      */
-    IPage<VideoListItemVO> getHomeVideos(VideoListRequest request);
+    List<VideoListItemVO> getHomeVideos(VideoListRequest request);
 
     /**
      * 获取热点视频列表
+     *
      * @param request 分页请求参数（包含可选的搜索关键词）
      * @return 视频列表分页结果
      */

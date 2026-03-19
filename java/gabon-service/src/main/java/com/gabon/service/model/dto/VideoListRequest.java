@@ -24,4 +24,7 @@ public class VideoListRequest {
 
     @Schema(description = "过滤标签列表（可选，按多个标签过滤，OR逻辑）", example = "[\"素人\",\"人妻\"]")
     private List<String> tags;
+
+    @Schema(description = "已看过的视频ID列表（可选，翻页时传入，排除已展示过的视频）", example = "[5, 12, 33]")
+    private List<Long> excludeIds;
 }

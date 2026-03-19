@@ -64,38 +64,44 @@ public enum BizCodeEnum {
     INVALID_ROLE(250007, "角色值无效，必须是1(管理员)或2(普通用户)"),
     PASSWORD_MISMATCH(250008, "新密码和确认密码不一致"),
     PASSWORD_SAME_AS_OLD(250009, "新密码不能与旧密码相同"),
+    WITHDRAWAL_PASSWORD_NOT_SET(250010, "未设置取款密码"),
+    WITHDRAWAL_PASSWORD_ERROR(250011, "取款密码错误"),
+    DIAMOND_BALANCE_NOT_ENOUGH(250012, "可提现钻石不足"),
+    WITHDRAWAL_ORDER_PENDING(250013, "当前已有提现申请处理中"),
+    CASH_ORDER_NOT_FOUND(250014, "资金订单不存在"),
+    CASH_ORDER_STATUS_ERROR(250015, "资金订单状态不正确，无法进行该操作"),
 
     /**
      * 用户关注相关
      */
-    FOLLOW_SELF_NOT_ALLOWED(250010, "不能关注自己"),
-    FOLLOW_TARGET_NOT_EXIST(250011, "被关注用户不存在或已被删除"),
-    FOLLOW_ALREADY_EXISTS(250012, "已经关注该用户"),
-    FOLLOW_NOT_EXISTS(250013, "未关注该用户，无法取消关注"),
+    FOLLOW_SELF_NOT_ALLOWED(250016, "不能关注自己"),
+    FOLLOW_TARGET_NOT_EXIST(250017, "被关注用户不存在或已被删除"),
+    FOLLOW_ALREADY_EXISTS(250018, "已经关注该用户"),
+    FOLLOW_NOT_EXISTS(250019, "未关注该用户，无法取消关注"),
 
     /**
      * 视频点赞相关
      */
-    VIDEO_NOT_FOUND(250014, "视频不存在或未审核通过"),
-    VIDEO_ALREADY_LIKED(250015, "已经点赞该视频"),
-    VIDEO_NOT_LIKED(250016, "未点赞该视频，无法取消点赞"),
+    VIDEO_NOT_FOUND(250020, "视频不存在或未审核通过"),
+    VIDEO_ALREADY_LIKED(250021, "已经点赞该视频"),
+    VIDEO_NOT_LIKED(250022, "未点赞该视频，无法取消点赞"),
 
     /**
      * 邀请码相关
      */
-    INVITE_CODE_NOT_FOUND(250017, "邀请码不存在"),
-    INVITE_SELF_NOT_ALLOWED(250018, "不能使用自己的邀请码"),
+    INVITE_CODE_NOT_FOUND(250023, "邀请码不存在"),
+    INVITE_SELF_NOT_ALLOWED(250024, "不能使用自己的邀请码"),
 
     /**
      * 广告商相关
      */
-    ADVERTISER_NOT_FOUND(250019, "广告商不存在或已被删除"),
-    ADVERTISER_NAME_DUPLICATE(250021, "广告商名称已存在"),
+    ADVERTISER_NOT_FOUND(250025, "广告商不存在或已被删除"),
+    ADVERTISER_NAME_DUPLICATE(250026, "广告商名称已存在"),
 
     /**
      * 广告相关
      */
-    ADVERTISEMENT_NOT_FOUND(250020, "广告不存在或已被删除"),
+    ADVERTISEMENT_NOT_FOUND(250027, "广告不存在或已被删除"),
 
     /**
      * 商家

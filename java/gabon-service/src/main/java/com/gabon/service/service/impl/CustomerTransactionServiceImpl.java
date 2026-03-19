@@ -1,5 +1,7 @@
 package com.gabon.service.service.impl;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -161,7 +163,7 @@ public class CustomerTransactionServiceImpl extends ServiceImpl<CustomerTransact
     }
 
     @Override
-    public WalletVO getWallet(Long customerId) {
+    public WalletVO getWallet(Long customerId, BigDecimal exchangeRate, String currencyCode) {
         ZoneId zoneId = ZoneId.of("Asia/Shanghai");
         LocalDate today = LocalDate.now(zoneId);
         Instant start = today.minusDays(6).atStartOfDay(zoneId).toInstant();
@@ -171,6 +173,14 @@ public class CustomerTransactionServiceImpl extends ServiceImpl<CustomerTransact
         Customer customer = customerMapper.selectActiveById(customerId);
         long totalBalance = customer != null && customer.getDiamondBalance() != null
                 ? customer.getDiamondBalance() : 0L;
+        long frozenBalance = customer != null && customer.getFrozenDiamondBalance() != null
+                ? customer.getFrozenDiamondBalance() : 0L;
+        long spendableBalance = Math.max(totalBalance - frozenBalance, 0L);
+        BigDecimal withdrawableAmountCny = BigDecimal.ZERO;
+        if (exchangeRate != null && exchangeRate.compareTo(BigDecimal.ZERO) > 0) {
+            withdrawableAmountCny = BigDecimal.valueOf(spendableBalance)
+                    .divide(exchangeRate, 2, RoundingMode.DOWN);
+        }
 
         // 近7天收益：2=观看奖励, 3=任务奖励, 4=签到奖励, 5=邀请奖励
         List<Integer> earningTypes = Arrays.asList(2, 3, 4, 5);
@@ -209,6 +219,11 @@ public class CustomerTransactionServiceImpl extends ServiceImpl<CustomerTransact
 
         WalletVO walletVO = new WalletVO();
         walletVO.setTotalBalance(totalBalance);
+        walletVO.setFrozenBalance(frozenBalance);
+        walletVO.setSpendableBalance(spendableBalance);
+        walletVO.setWithdrawableAmountCny(withdrawableAmountCny);
+        walletVO.setExchangeRate(exchangeRate);
+        walletVO.setCurrencyCode(currencyCode);
         walletVO.setSevenDayEarnings(sevenDayEarnings);
         walletVO.setTransactions(transactions);
         return walletVO;

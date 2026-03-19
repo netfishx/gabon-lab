@@ -208,43 +208,25 @@ public class VideoServiceImpl implements VideoService {
     }
 
     @Override
-    public IPage<VideoListItemVO> getHomeVideos(VideoListRequest request) {
-        // 1. 获取分页参数
-        int page = request.getPage() != null ? request.getPage() : 1;
+    public List<VideoListItemVO> getHomeVideos(VideoListRequest request) {
         int size = request.getSize() != null ? request.getSize() : 10;
 
-        // 2. 处理搜索关键词（如果提供则trim，否则为null）
-        String keyword = request.getKeyword() != null && !request.getKeyword().trim().isEmpty()
-                ? request.getKeyword().trim()
-                : null;
+        List<Long> excludeIds = request.getExcludeIds();
+        List<Video> videos = (excludeIds != null && !excludeIds.isEmpty())
+                ? videoMapper.selectHomeVideosWithExclude(excludeIds, size)
+                : videoMapper.selectHomeVideos(size);
 
-        // 3. 调用 Mapper 查询（动态 SQL 会根据 keyword 是否为空决定是否添加搜索条件）
-        IPage<Video> videoPage = videoMapper.selectHomeVideos(new Page<>(page, size), keyword, request.getTags());
-
-        // 4. 转换为 VO
-        List<VideoListItemVO> voList = videoPage.getRecords().stream()
-                .map(this::convertToVO)
-                .collect(Collectors.toList());
-
-        // 5. 构建分页响应
-        Page<VideoListItemVO> voPage = new Page<>(page, size, videoPage.getTotal());
-        voPage.setRecords(voList);
-
-        return voPage;
+        return videos.stream().map(this::convertToVO).collect(Collectors.toList());
     }
 
     @Override
     public IPage<VideoListItemVO> getFeaturedVideos(VideoListRequest request) {
-        // 1. 获取分页参数
         int page = request.getPage() != null ? request.getPage() : 1;
         int size = request.getSize() != null ? request.getSize() : 10;
-
-        // 2. 处理搜索关键词（如果提供则trim，否则为null）
         String keyword = request.getKeyword() != null && !request.getKeyword().trim().isEmpty()
                 ? request.getKeyword().trim()
                 : null;
 
-        // 3. 热点视频仅支持单个标签过滤，忽略空白标签
         String tag = null;
         if (request.getTags() != null) {
             for (String candidate : request.getTags()) {
@@ -255,15 +237,12 @@ public class VideoServiceImpl implements VideoService {
             }
         }
 
-        // 4. 调用 Mapper 查询（keyword 仅搜索标题，tag 仅使用单个精确标签）
         IPage<Video> videoPage = videoMapper.selectFeaturedVideos(new Page<>(page, size), keyword, tag);
 
-        // 5. 转换为 VO
         List<VideoListItemVO> voList = videoPage.getRecords().stream()
                 .map(this::convertToVO)
                 .collect(Collectors.toList());
 
-        // 6. 构建分页响应
         Page<VideoListItemVO> voPage = new Page<>(page, size, videoPage.getTotal());
         voPage.setRecords(voList);
 

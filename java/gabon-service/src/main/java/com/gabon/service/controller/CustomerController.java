@@ -3,6 +3,7 @@ package com.gabon.service.controller;
 import com.gabon.common.enums.BizCodeEnum;
 import com.gabon.common.exception.BizException;
 import com.gabon.common.util.JsonData;
+import com.gabon.service.config.WalletProperties;
 import com.gabon.service.config.AuthInterceptor;
 import com.gabon.service.model.dto.PresignedUploadUrlRequest;
 import com.gabon.service.model.dto.ProfileResponse;
@@ -54,6 +55,8 @@ public class CustomerController {
     UserFollowService userFollowService;
     @Autowired
     CustomerTransactionService customerTransactionService;
+    @Autowired
+    WalletProperties walletProperties;
 
     /**
      * 获取用户资料
@@ -312,7 +315,10 @@ public class CustomerController {
         if (customer == null) {
             throw new BizException(BizCodeEnum.ACCOUNT_UNLOGIN);
         }
-        return JsonData.buildSuccess(customerTransactionService.getWallet(customer.getId()));
+        return JsonData.buildSuccess(customerTransactionService.getWallet(
+                customer.getId(),
+                walletProperties.getExchangeRate(),
+                walletProperties.getCurrencyCode()));
     }
 
     /**

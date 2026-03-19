@@ -3,6 +3,7 @@ package com.gabon.service.mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+
 import com.gabon.service.model.entity.Video;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -17,41 +18,31 @@ import java.util.List;
 @Mapper
 public interface VideoMapper extends BaseMapper<Video> {
 
-        /**
-         * 查询首页视频（审核通过且未删除，随机排序）
-         * 支持可选的关键词搜索（按标题模糊搜索）
-         * 
-         * @param page    分页参数
-         * @param keyword 搜索关键词（可选，如果为null或空则不进行搜索）
-         * @return 视频分页结果
-         */
+        /** 查询首页视频（无排除列表） */
+        @Select("SELECT * FROM videos WHERE status = 4 AND deleted_flag IS NULL ORDER BY RAND() LIMIT #{size}")
+        List<Video> selectHomeVideos(@Param("size") int size);
+
+        /** 查询首页视频（排除已看ID） */
         @Select("<script>" +
                         "SELECT * FROM videos " +
                         "WHERE status = 4 " +
                         "AND deleted_flag IS NULL " +
-                        "<if test='keyword != null and keyword != \"\"'>" +
-                        "AND (title LIKE CONCAT('%', #{keyword}, '%') OR tags LIKE CONCAT('%', #{keyword}, '%')) " +
-                        "</if>" +
-                        "<if test='tags != null and tags.size() > 0'>" +
-                        "AND (" +
-                        "<foreach collection='tags' item='t' separator=' OR '>" +
-                        "FIND_IN_SET(#{t}, tags) &gt; 0" +
+                        "AND id NOT IN " +
+                        "<foreach collection='excludeIds' item='eid' open='(' separator=',' close=')'>" +
+                        "#{eid}" +
                         "</foreach>" +
-                        ")" +
-                        "</if>" +
-                        "ORDER BY RAND()" +
+                        "ORDER BY RAND() LIMIT #{size}" +
                         "</script>")
-        IPage<Video> selectHomeVideos(Page<Video> page, @Param("keyword") String keyword,
-                        @Param("tags") List<String> tags);
+        List<Video> selectHomeVideosWithExclude(@Param("excludeIds") List<Long> excludeIds,
+                        @Param("size") int size);
 
         /**
          * 查询热点视频（审核通过且未删除，随机排序）
          * 支持可选的关键词搜索（仅按标题模糊搜索）
          * 支持可选的单个标签过滤
-         * 当前逻辑与首页相同，但分开实现便于后续扩展
-         * 
+         *
          * @param page    分页参数
-         * @param keyword 搜索关键词（可选，如果为null或空则不进行搜索）
+         * @param keyword 搜索关键词（可选）
          * @param tag     单个标签过滤（可选）
          * @return 视频分页结果
          */

@@ -1,5 +1,7 @@
 package com.gabon.service.service;
 
+import java.math.BigDecimal;
+
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.gabon.common.enums.TransactionTypeEnum;
@@ -63,5 +65,5 @@ public interface CustomerTransactionService extends IService<CustomerTransaction
      * @param customerId 客户ID
      * @return 钱包信息
      */
-    WalletVO getWallet(Long customerId);
+    WalletVO getWallet(Long customerId, BigDecimal exchangeRate, String currencyCode);
 }

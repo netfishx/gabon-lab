@@ -48,7 +48,15 @@ public class OpenApiConfiguration {
                                                                 +
                                                                 "  > GET /videos 默认不传 status 或传 -1 时，仅返回 3/4/5（排除转码流水线 0/1/2）；传具体值则精确过滤\n"
                                                                 +
-                                                                "- **VIP状态 VipStatus**: 0=普通用户(Non-VIP), 1=VIP会员(VIP)")
+                                                                "- **VIP状态 VipStatus**: 0=普通用户(Non-VIP), 1=VIP会员(VIP)\n"
+                                                                +
+                                                                "- **资金订单类型 CashOrderType**: 1=提现(Withdraw), 2=充值(Recharge)\n"
+                                                                +
+                                                                "- **提现订单状态 WithdrawOrderStatus**: 1=待审核(Pending Admin Review), 2=已拒绝(Rejected), 3=提现中(Processing), 4=成功(Success), 5=失败(Failed)\n"
+                                                                +
+                                                                "- **提现审核结果 WithdrawReviewStatus**: 1=同意(Agree), 2=拒绝(Reject)\n"
+                                                                +
+                                                                "- **资金订单完成状态 CashOrderCompleteStatus**: 4=成功(Success), 5=失败(Failed)")
                                                 .version("v1.0.0")
                                                 .contact(new Contact()
                                                                 .name("gabon Team")
@@ -71,6 +79,22 @@ public class OpenApiConfiguration {
                                                 .addSchemas("UserStatus", new StringSchema()
                                                                 .description("账户状态枚举 | User Status Enum")
                                                                 ._enum(java.util.Arrays.asList("0", "1"))
+                                                                .example("1"))
+                                                .addSchemas("CashOrderType", new StringSchema()
+                                                                .description("资金订单类型 | Cash Order Type")
+                                                                ._enum(java.util.Arrays.asList("1", "2"))
+                                                                .example("1"))
+                                                .addSchemas("WithdrawOrderStatus", new StringSchema()
+                                                                .description("提现订单状态 | Withdraw Order Status")
+                                                                ._enum(java.util.Arrays.asList("1", "2", "3", "4", "5"))
+                                                                .example("1"))
+                                                .addSchemas("WithdrawReviewStatus", new StringSchema()
+                                                                .description("提现审核结果 | Withdraw Review Status")
+                                                                ._enum(java.util.Arrays.asList("1", "2"))
+                                                                .example("1"))
+                                                .addSchemas("CashOrderCompleteStatus", new StringSchema()
+                                                                .description("资金订单完成状态 | Cash Order Complete Status")
+                                                                ._enum(java.util.Arrays.asList("4", "5"))
                                                                 .example("1")))
                                 .addSecurityItem(new SecurityRequirement().addList("Bearer"));
         }

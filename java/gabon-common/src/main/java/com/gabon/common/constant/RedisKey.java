@@ -54,4 +54,16 @@ public class RedisKey {
      */
     public static final String LIKE_VIDEO_USER = "like:video:%d:%d";
 
+    /**
+     * 当日有广告播放记录的广告商ID集合: ad:report:{date}:advertisers
+     * date 格式: yyyy-MM-dd（北京时间），TTL 48h
+     */
+    public static final String AD_REPORT_ADVERTISERS = "ad:report:%s:advertisers";
+
+    /**
+     * 当日广告商播放次数: ad:report:{date}:advertiser:{advertiserId}:plays
+     * date 格式: yyyy-MM-dd（北京时间），TTL 48h
+     */
+    public static final String AD_REPORT_ADVERTISER_PLAYS = "ad:report:%s:advertiser:%d:plays";
+
 }

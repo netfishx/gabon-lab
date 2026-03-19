@@ -36,8 +36,8 @@ ACCOUNTS = [
 
 VIDEO_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".valid", "videos")
 
-S3_ACCESS_KEY   = "CHANGE_ME_ACCESS_KEY"
-S3_SECRET_KEY   = "CHANGE_ME_SECRET_KEY"
+S3_ACCESS_KEY   = "CHANGE_ME"
+S3_SECRET_KEY   = "CHANGE_ME"
 S3_REGION       = "ap-east-1"
 S3_BUCKET       = "aitools888"
 

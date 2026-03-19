@@ -220,28 +220,20 @@ public class VideoController {
         /**
          * 获取首页视频列表
          */
-        @Operation(summary = "获取首页视频列表", description = "分页获取所有审核通过且未删除的视频，随机排列。支持可选的关键词搜索（按视频标题模糊搜索）")
+        @Operation(summary = "获取首页视频列表", description = "随机返回指定数量的视频，传入 excludeIds 可排除已看过的视频，实现无重复的无限滚动")
         @ApiResponses(value = {
                         @ApiResponse(responseCode = "200", description = "查询成功")
         })
         @GetMapping
-        public JsonData<IPage<VideoListItemVO>> getHomeVideos(
-                        @Parameter(description = "页码 (从1开始) | Page number (1-indexed)", example = "1") @RequestParam(value = "page", defaultValue = "1") Integer page,
-                        @Parameter(description = "每页数量 | Page size", example = "10") @RequestParam(value = "size", defaultValue = "10") Integer size,
-                        @Parameter(description = "搜索关键词（可选，搜索标题或标签）| Search keyword", example = "时尚") @RequestParam(value = "keyword", required = false) String keyword,
-                        @Parameter(description = "标签列表（可选，支持多个: ?tags=素人&tags=人妻）", example = "素人") @RequestParam(value = "tags", required = false) java.util.List<String> tags) {
+        public JsonData<List<VideoListItemVO>> getHomeVideos(
+                        @Parameter(description = "每次返回数量 | Page size", example = "10") @RequestParam(value = "size", defaultValue = "10") Integer size,
+                        @Parameter(description = "已看过的视频ID列表（可选，翻页时传入排除已展示视频: ?excludeIds=1&excludeIds=2）") @RequestParam(value = "excludeIds", required = false) List<Long> excludeIds) {
 
-                // 封装成 Request
                 VideoListRequest request = new VideoListRequest();
-                request.setPage(page);
                 request.setSize(size);
-                request.setKeyword(keyword);
-                request.setTags(tags);
+                request.setExcludeIds(excludeIds);
 
-                // 调用 Service
-                IPage<VideoListItemVO> result = videoService.getHomeVideos(request);
-
-                return JsonData.buildSuccess(result);
+                return JsonData.buildSuccess(videoService.getHomeVideos(request));
         }
 
         /**
@@ -258,17 +250,13 @@ public class VideoController {
                         @Parameter(description = "搜索关键词（可选，仅搜索标题）| Search keyword in title only", example = "时尚") @RequestParam(value = "keyword", required = false) String keyword,
                         @Parameter(description = "单个标签过滤（可选）| Single tag filter", example = "素人") @RequestParam(value = "tag", required = false) String tag) {
 
-                // 封装成 Request
                 VideoListRequest request = new VideoListRequest();
                 request.setPage(page);
                 request.setSize(size);
                 request.setKeyword(keyword);
                 request.setTags(tag != null && !tag.trim().isEmpty() ? Collections.singletonList(tag) : null);
 
-                // 调用 Service（独立的 Service 方法）
-                IPage<VideoListItemVO> result = videoService.getFeaturedVideos(request);
-
-                return JsonData.buildSuccess(result);
+                return JsonData.buildSuccess(videoService.getFeaturedVideos(request));
         }
 
         /**

@@ -28,6 +28,44 @@ public interface CustomerMapper extends BaseMapper<Customer> {
     int addDiamondBalance(@Param("id") Long id, @Param("amount") Long amount);
 
     /**
+     * 冻结钻石余额，仅在可用余额充足时成功
+     */
+    @Update("""
+            UPDATE customers
+            SET frozen_diamond_balance = COALESCE(frozen_diamond_balance, 0) + #{amount}
+            WHERE id = #{id}
+              AND deleted_flag IS NULL
+              AND COALESCE(diamond_balance, 0) - COALESCE(frozen_diamond_balance, 0) >= #{amount}
+            """)
+    int freezeDiamondBalance(@Param("id") Long id, @Param("amount") Long amount);
+
+    /**
+     * 解冻钻石余额
+     */
+    @Update("""
+            UPDATE customers
+            SET frozen_diamond_balance = COALESCE(frozen_diamond_balance, 0) - #{amount}
+            WHERE id = #{id}
+              AND deleted_flag IS NULL
+              AND COALESCE(frozen_diamond_balance, 0) >= #{amount}
+            """)
+    int releaseFrozenDiamondBalance(@Param("id") Long id, @Param("amount") Long amount);
+
+    /**
+     * 提现成功时结算总余额与冻结余额
+     */
+    @Update("""
+            UPDATE customers
+            SET diamond_balance = COALESCE(diamond_balance, 0) - #{amount},
+                frozen_diamond_balance = COALESCE(frozen_diamond_balance, 0) - #{amount}
+            WHERE id = #{id}
+              AND deleted_flag IS NULL
+              AND COALESCE(diamond_balance, 0) >= #{amount}
+              AND COALESCE(frozen_diamond_balance, 0) >= #{amount}
+            """)
+    int settleWithdrawSuccess(@Param("id") Long id, @Param("amount") Long amount);
+
+    /**
      * 统计用户的关注数（关注了多少人）
      */
     @Select("SELECT COUNT(*) FROM user_follow WHERE follower_id = #{userId} AND status = 1")

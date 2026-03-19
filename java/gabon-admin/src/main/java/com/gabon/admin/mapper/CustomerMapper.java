@@ -5,6 +5,7 @@ import com.gabon.admin.model.entity.Customer;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 import java.util.List;
 
@@ -41,5 +42,32 @@ public interface CustomerMapper extends BaseMapper<Customer> {
     @Select("SELECT * FROM customers " +
             "WHERE vip_level = #{vipLevel} AND deleted_flag IS NULL")
     List<Customer> findByVipLevel(@Param("vipLevel") Integer vipLevel);
-}
 
+    @Update("""
+            UPDATE customers
+            SET frozen_diamond_balance = COALESCE(frozen_diamond_balance, 0) - #{amount}
+            WHERE id = #{id}
+              AND deleted_flag IS NULL
+              AND COALESCE(frozen_diamond_balance, 0) >= #{amount}
+            """)
+    int releaseFrozenDiamondBalance(@Param("id") Long id, @Param("amount") Long amount);
+
+    @Update("""
+            UPDATE customers
+            SET diamond_balance = COALESCE(diamond_balance, 0) + #{amount}
+            WHERE id = #{id}
+              AND deleted_flag IS NULL
+            """)
+    int addDiamondBalance(@Param("id") Long id, @Param("amount") Long amount);
+
+    @Update("""
+            UPDATE customers
+            SET diamond_balance = COALESCE(diamond_balance, 0) - #{amount},
+                frozen_diamond_balance = COALESCE(frozen_diamond_balance, 0) - #{amount}
+            WHERE id = #{id}
+              AND deleted_flag IS NULL
+              AND COALESCE(diamond_balance, 0) >= #{amount}
+              AND COALESCE(frozen_diamond_balance, 0) >= #{amount}
+            """)
+    int settleWithdrawSuccess(@Param("id") Long id, @Param("amount") Long amount);
+}

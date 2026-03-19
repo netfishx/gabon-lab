@@ -68,18 +68,20 @@ public class TaskProgressServiceImpl implements TaskProgressService {
     @Override
     @Transactional
     public void updateWatchVideoProgress(Long customerId, Long videoId) {
+        // FIXME 暂时只有每日视频任务
+
         String dailyKey = getPeriodKey(1);
-        String weeklyKey = getPeriodKey(2);
-        String monthlyKey = getPeriodKey(3);
+        // String weeklyKey = getPeriodKey(2);
+        // String monthlyKey = getPeriodKey(3);
 
         // 更新每日观看视频任务
         updateWatchTaskProgress(customerId, 1, dailyKey);
 
         // 更新每周观看视频任务
-        updateWatchTaskProgress(customerId, 2, weeklyKey);
+        // updateWatchTaskProgress(customerId, 2, weeklyKey);
 
         // 更新每月观看视频任务
-        updateWatchTaskProgress(customerId, 3, monthlyKey);
+        // updateWatchTaskProgress(customerId, 3, monthlyKey);
 
         log.info("Updated watch video progress for customer: {}, video: {}", customerId, videoId);
     }

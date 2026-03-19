@@ -175,6 +175,48 @@ create index idx_transaction_time
 create index idx_transaction_type
     on customer_transactions (transaction_type);
 
+create table customer_cash_orders
+(
+    id                   bigint auto_increment
+        primary key,
+    order_no             varchar(64)                          not null comment '订单号',
+    customer_id          bigint                               not null comment '客户ID',
+    customer_username    varchar(100)                         null comment '客户用户名快照',
+    customer_name        varchar(255)                         null comment '客户昵称快照',
+    order_type           tinyint                              not null comment '订单类型: 1=提现, 2=充值',
+    status               tinyint                              not null comment '状态: 1=待审核, 2=已拒绝, 3=处理中, 4=成功, 5=失败',
+    fiat_amount          decimal(18, 2)                       not null comment '法币金额',
+    diamond_amount       bigint                               not null comment '钻石数量',
+    currency_code        varchar(16) default 'CNY'            not null comment '法币币种',
+    exchange_rate        decimal(18, 4)                       not null comment '汇率（每1 CNY对应钻石数）',
+    payment_channel      varchar(50)                          null comment '支付渠道',
+    provider_name        varchar(50)                          null comment '第三方平台名称',
+    provider_order_no    varchar(100)                         null comment '第三方订单号',
+    provider_status      varchar(50)                          null comment '第三方状态',
+    reviewed_by_admin_id bigint                               null comment '审核管理员ID',
+    reviewed_time        timestamp                            null comment '审核时间',
+    failure_reason       varchar(255)                         null comment '失败或拒绝原因',
+    completed_time       timestamp                            null comment '完成时间',
+    external_reference   varchar(100)                         null comment '外部引用号',
+    create_time          timestamp default CURRENT_TIMESTAMP  null,
+    update_time          timestamp default CURRENT_TIMESTAMP  null on update CURRENT_TIMESTAMP,
+    create_by            varchar(100)                         null,
+    update_by            varchar(100)                         null,
+    deleted_flag         timestamp                            null,
+    constraint uk_cash_order_no
+        unique (order_no)
+)
+    comment '客户资金订单表';
+
+create index idx_cash_order_customer
+    on customer_cash_orders (customer_id);
+
+create index idx_cash_order_type_status
+    on customer_cash_orders (order_type, status);
+
+create index idx_cash_order_create_time
+    on customer_cash_orders (create_time);
+
 create table customers
 (
     id                       bigint auto_increment comment '主键ID'
@@ -196,6 +238,7 @@ create table customers
     update_by                varchar(100)                        null comment '修改人',
     deleted_flag             timestamp                           null comment '逻辑删除标识（时间戳）NULL表示可用，有值表示已删除',
     diamond_balance          bigint    default 0                 not null comment '钻石余额 | Diamond balance',
+    frozen_diamond_balance   bigint    default 0                 not null comment '冻结钻石余额 | Frozen diamond balance',
     invite_code              varchar(8)                          null comment '邀请码（8位字母+数字）',
     invited_by               bigint                              null comment '邀请人customer_id',
     constraint invite_code

@@ -1,11 +1,14 @@
 package com.gabon.admin.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.gabon.admin.model.dto.AdReportRequest;
 import com.gabon.admin.model.dto.RevenueReportRequest;
 import com.gabon.admin.model.dto.RevenueReportResponse;
 import com.gabon.admin.model.dto.VideoReportRequest;
 import com.gabon.admin.model.dto.VideoReportSummaryResponse;
+import com.gabon.admin.model.entity.DailyAdReport;
 import com.gabon.admin.model.entity.DailyVideoReport;
+import com.gabon.admin.service.AdReportService;
 import com.gabon.admin.service.RevenueReportService;
 import com.gabon.admin.service.VideoReportService;
 import com.gabon.common.util.JsonData;
@@ -29,6 +32,7 @@ public class ReportController {
 
         private final RevenueReportService revenueReportService;
         private final VideoReportService videoReportService;
+        private final AdReportService adReportService;
 
         /**
          * 查询营收报表
@@ -58,6 +62,20 @@ public class ReportController {
                                 request.getCustomerName());
 
                 IPage<DailyVideoReport> result = videoReportService.getDailyVideoReport(request);
+                return JsonData.buildSuccess(result);
+        }
+
+        /**
+         * 查询广告每日播放报表
+         */
+        @GetMapping("/ad/daily")
+        @Operation(summary = "查询广告每日播放报表", description = "分页查询各广告商每日广告播放次数，最多查询30天")
+        public JsonData<IPage<DailyAdReport>> getDailyAdReport(
+                        @Validated @ModelAttribute AdReportRequest request) {
+                log.info("GET /api/reports/ad/daily - startDate: {}, endDate: {}, advertiserId: {}",
+                                request.getStartDate(), request.getEndDate(), request.getAdvertiserId());
+
+                IPage<DailyAdReport> result = adReportService.getDailyAdReport(request);
                 return JsonData.buildSuccess(result);
         }
 
