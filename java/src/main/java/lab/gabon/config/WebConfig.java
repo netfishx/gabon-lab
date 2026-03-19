@@ -2,8 +2,9 @@ package lab.gabon.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
-import java.util.Set;
+import java.util.List;
 import lab.gabon.security.JwtAuthFilter;
+import lab.gabon.security.JwtAuthFilter.PublicRoute;
 import lab.gabon.security.RateLimitFilter;
 import lab.gabon.service.JwtService;
 import lab.gabon.service.TokenStore;
@@ -32,7 +33,21 @@ public class WebConfig implements WebMvcConfigurer {
             jwtService::verifyCustomerAccess,
             tokenStore,
             objectMapper,
-            Set.of("/auth/register", "/auth/login", "/auth/refresh"));
+            List.of(
+                // Auth
+                new PublicRoute("*", "/auth/register"),
+                new PublicRoute("*", "/auth/login"),
+                new PublicRoute("*", "/auth/refresh"),
+                // Video — public list
+                new PublicRoute("GET", "/videos"),
+                new PublicRoute("GET", "/videos/featured"),
+                // Video — optional auth (detail, play tracking)
+                new PublicRoute("GET", "/videos/*"),
+                new PublicRoute("POST", "/videos/*/play-click"),
+                new PublicRoute("POST", "/videos/*/play-valid"),
+                // User videos — public
+                new PublicRoute("GET", "/users/*/videos")),
+            "/api/v1");
     var reg = new FilterRegistrationBean<>(filter);
     reg.addUrlPatterns("/api/v1/*");
     reg.setOrder(10);
@@ -47,7 +62,8 @@ public class WebConfig implements WebMvcConfigurer {
             jwtService::verifyAdminAccess,
             tokenStore,
             objectMapper,
-            Set.of("/auth/login", "/auth/refresh"));
+            List.of(new PublicRoute("*", "/auth/login"), new PublicRoute("*", "/auth/refresh")),
+            "/admin/v1");
     var reg = new FilterRegistrationBean<>(filter);
     reg.addUrlPatterns("/admin/v1/*");
     reg.setOrder(10);

@@ -8,37 +8,47 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.util.Set;
+import java.util.List;
 import java.util.function.Function;
 import lab.gabon.common.ApiResponse;
 import lab.gabon.common.AppError;
 import lab.gabon.service.JwtService;
 import lab.gabon.service.TokenStore;
 import org.springframework.http.MediaType;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
  * JWT authentication filter that verifies Bearer tokens for a specific domain (customer or admin).
  *
- * <p>Skips public paths (e.g. register, login, refresh). On auth failure, writes a JSON error
- * response directly without propagating to the controller layer.
+ * <p>Public routes are matched by HTTP method + Ant-style path pattern. On public routes, auth is
+ * optional: a valid token sets the userId attribute, but missing/invalid tokens are silently
+ * ignored.
  */
 public class JwtAuthFilter extends OncePerRequestFilter {
+
+  private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
+
+  /** A public route: method ("*" = any) + Ant-style path pattern (relative to pathPrefix). */
+  public record PublicRoute(String method, String pattern) {}
 
   private final Function<String, JwtService.TokenClaims> verifier;
   private final TokenStore tokenStore;
   private final ObjectMapper objectMapper;
-  private final Set<String> publicPaths;
+  private final List<PublicRoute> publicRoutes;
+  private final String pathPrefix;
 
   public JwtAuthFilter(
       Function<String, JwtService.TokenClaims> verifier,
       TokenStore tokenStore,
       ObjectMapper objectMapper,
-      Set<String> publicPaths) {
+      List<PublicRoute> publicRoutes,
+      String pathPrefix) {
     this.verifier = verifier;
     this.tokenStore = tokenStore;
     this.objectMapper = objectMapper;
-    this.publicPaths = publicPaths;
+    this.publicRoutes = publicRoutes;
+    this.pathPrefix = pathPrefix;
   }
 
   @Override
@@ -46,8 +56,10 @@ public class JwtAuthFilter extends OncePerRequestFilter {
       HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
       throws ServletException, IOException {
     var path = request.getRequestURI();
+    var method = request.getMethod();
 
-    if (isPublicPath(path)) {
+    if (isPublicRoute(method, path)) {
+      tryExtractAuth(request);
       filterChain.doFilter(request, response);
       return;
     }
@@ -88,9 +100,31 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     filterChain.doFilter(request, response);
   }
 
-  private boolean isPublicPath(String path) {
-    for (var suffix : publicPaths) {
-      if (path.endsWith(suffix)) {
+  /**
+   * Best-effort token extraction for public routes (optional auth). Sets userId attribute if a
+   * valid token is present; silently ignores any auth failures.
+   */
+  private void tryExtractAuth(HttpServletRequest request) {
+    var header = request.getHeader("Authorization");
+    if (header == null || !header.startsWith("Bearer ")) {
+      return;
+    }
+    try {
+      var claims = verifier.apply(header.substring(7));
+      if (!tokenStore.isBlacklisted(claims.jti())) {
+        request.setAttribute("userId", claims.userId());
+      }
+    } catch (Exception ignored) {
+      // Optional auth — failures are expected and safe to ignore
+    }
+  }
+
+  private boolean isPublicRoute(String method, String fullPath) {
+    var relative =
+        fullPath.startsWith(pathPrefix) ? fullPath.substring(pathPrefix.length()) : fullPath;
+    for (var route : publicRoutes) {
+      boolean methodMatch = "*".equals(route.method()) || route.method().equalsIgnoreCase(method);
+      if (methodMatch && PATH_MATCHER.match(route.pattern(), relative)) {
         return true;
       }
     }
