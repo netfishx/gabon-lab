@@ -15,11 +15,12 @@ Key implementation areas:
   - Expose port 8090. `ENTRYPOINT ["java", ...]`.
 
 - **Makefile targets** (add to top-level Makefile):
-  - `dev-kotlin`: `cd kotlin && ./gradlew run`
+  - `dev-kotlin`: `cd kotlin && ./gradlew run` (Flyway auto-migrates on startup, no separate migrate step needed)
   - `build-kotlin`: `cd kotlin && ./gradlew buildFatJar`
   - `test-kotlin`: `cd kotlin && ./gradlew test`
   - `lint-kotlin`: `cd kotlin && ./gradlew detekt` (or ktlint, matching task-001 choice)
   - `bench-k6-kotlin`: k6 scenario against port 8090
+  - Update top-level `make migrate` to note Kotlin uses Flyway (auto on startup), no manual step needed
 
 - **.env.example**: add `KOTLIN_PORT=8090`
 

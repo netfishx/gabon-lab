@@ -13,6 +13,7 @@
 - 响应格式 `JsonData<T>` (code:Int=0, message, data)，与 Go/Rust 对齐
 - bcrypt cost=10（压测场景），报表路径 `/reports/video/daily`（与 Go 一致）
 - 热路径（CTE 点赞、原子计数器）用 `exec()` 原生 SQL，常规 CRUD 用 Exposed DSL
+- DB 迁移：Flyway（启动时自动执行），SQL 文件从 Go goose 迁移复制并转换格式，Kotlin 实现完全自包含
 - Test-first (Red-Green)：每个 feature 先写测试（Red），再实现（Green）
 
 ## Execution Plan

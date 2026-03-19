@@ -9,7 +9,7 @@ Initialize the Kotlin/Ktor project under `kotlin/` directory with Gradle Kotlin 
 
 Key decisions:
 
-- **Version Catalog** (`gradle/libs.versions.toml`): centralize ALL dependency versions — Kotlin 2.3.20, Ktor 3.4.0, Exposed 1.1.1, HikariCP 6.3.0, kotlinx-serialization 1.10.0, Lettuce 7.3.0, AWS SDK for Kotlin 1.5.5, bcrypt 0.10.2, Logback. Define version variables, libraries, and bundles.
+- **Version Catalog** (`gradle/libs.versions.toml`): centralize ALL dependency versions — Kotlin 2.3.20, Ktor 3.4.0, Exposed 1.1.1, HikariCP 6.3.0, kotlinx-serialization 1.10.0, Lettuce 7.3.0, AWS SDK for Kotlin 1.5.5, bcrypt 0.10.2, Flyway 11.x (`org.flywaydb:flyway-core` + `org.flywaydb:flyway-database-postgresql`), Logback. Define version variables, libraries, and bundles.
 - **build.gradle.kts**: apply `kotlin("jvm")`, `kotlin("plugin.serialization")`, `io.ktor.plugin` (fat jar). Set JVM toolchain to 21. Configure `application { mainClass }` pointing to `lab.gabon.ApplicationKt`. Enable K2 compiler. Configure JVM args for ZGC (`-XX:+UseZGC`).
 - **gradle.properties**: set `kotlin.code.style=official`, org.gradle.jvmargs for build process, enable configuration cache if compatible.
 - **settings.gradle.kts**: project name `gabon-kotlin`, enable version catalog.
