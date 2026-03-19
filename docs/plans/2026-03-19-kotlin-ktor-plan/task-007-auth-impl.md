@@ -21,7 +21,7 @@ All queries use Exposed DSL against the customers table defined in Task 003.
 
 - `register(username, password)`: Validate input (username >= 3 chars, password >= 6 chars). Check uniqueness via findByUsername. Hash password with bcrypt(cost=10). Create customer. Generate token pair. Return TokenResponse.
 - `login(username, password)`: Find by username (case-insensitive). Verify bcrypt. Update last_login_at. Generate token pair. Return TokenResponse.
-- `refresh(refreshToken)`: Decode JWT. Verify token_type=refresh, iss=gabon-service, aud=customer. Extract family_id and jti. Redis CAS: GET family:{family_id} and compare stored JTI. If match, generate new token pair with same family_id, SET new JTI. If mismatch (replay detected), DEL family -- revoke entire family. Return new TokenResponse or throw.
+- `refresh(refreshToken)`: Decode JWT. Verify token_type=refresh, iss=gabon-service, aud=customer. Extract family_id and jti. Redis CAS: call `casFamily("token:family:{family_id}", oldJti, newJti)`. If Success, return new tokens. If Conflict (replay detected), delete family via `deleteFamily` — revoke entire family. If Missing, reject. Return new TokenResponse or throw.
 - `logout(accessToken)`: Decode JWT. Add JTI to Redis blacklist with TTL matching token remaining lifetime. DEL the token family from Redis.
 - `changePassword(customerId, oldPassword, newPassword)`: Fetch customer. Verify old password with bcrypt. Hash new password. Update via repo.
 - `getMe(customerId)`: Fetch customer by ID. Return profile data (id, username, name, phone, is_vip, avatar_url).

@@ -17,7 +17,7 @@ Key decisions:
 
   - `suspend fun isBlacklisted(jti: String): Boolean` — EXISTS key `token:blacklist:{jti}`, return true if > 0.
 
-  - `suspend fun setFamily(familyId: String, userId: Long, currentJti: String, ttl: Duration)` — SET key `token:token:family:{familyId}` with value `"{userId}:{currentJti}"` and EX ttl. Creates a new refresh token family.
+  - `suspend fun setFamily(familyId: String, userId: Long, currentJti: String, ttl: Duration)` — SET key `token:family:{familyId}` with value `"{userId}:{currentJti}"` and EX ttl. Creates a new refresh token family.
 
   - `suspend fun casFamily(familyId: String, expectedJti: String, newJti: String): CasResult` — execute a Lua script atomically:
     ```
