@@ -97,6 +97,15 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     }
 
     request.setAttribute("userId", claims.userId());
+    if (claims.jti() != null) {
+      request.setAttribute("jti", claims.jti());
+    }
+    if (claims.familyId() != null) {
+      request.setAttribute("familyId", claims.familyId());
+    }
+    if (claims.role() != null) {
+      request.setAttribute("role", claims.role());
+    }
     filterChain.doFilter(request, response);
   }
 

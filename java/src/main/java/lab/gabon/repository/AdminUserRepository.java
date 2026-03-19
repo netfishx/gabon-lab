@@ -45,6 +45,19 @@ public interface AdminUserRepository extends CrudRepository<AdminUser, Long> {
 
   @Modifying
   @Query(
+      """
+      UPDATE admin_users SET
+          full_name = COALESCE(NULLIF(:fullName, ''), full_name),
+          phone = COALESCE(NULLIF(:phone, ''), phone),
+          role = CASE WHEN :role >= 0 THEN :role ELSE role END,
+          status = CASE WHEN :status >= 0 THEN :status ELSE status END,
+          updated_at = NOW()
+      WHERE id = :id AND deleted_at IS NULL
+      """)
+  int updateAdminFull(long id, String fullName, String phone, short role, short status);
+
+  @Modifying
+  @Query(
       "UPDATE admin_users SET deleted_at = NOW(), updated_at = NOW()"
           + " WHERE id = :id AND deleted_at IS NULL")
   int softDelete(long id);
