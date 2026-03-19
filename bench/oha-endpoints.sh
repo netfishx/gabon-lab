@@ -1,5 +1,5 @@
 #!/bin/bash
-# Single-endpoint throughput benchmark: Go vs Rust vs Kotlin
+# Single-endpoint throughput benchmark: Go vs Rust vs Kotlin vs Java
 # Usage: ./bench/oha-endpoints.sh [duration] [concurrency_levels]
 # Example: ./bench/oha-endpoints.sh 30 "50 200 500 1000"
 
@@ -10,14 +10,16 @@ CONCURRENCY_LEVELS=${2:-"50 200 500 1000"}
 GO_BASE="http://localhost:8080"
 RUST_BASE="http://localhost:3000"
 KOTLIN_BASE="http://localhost:8090"
+JAVA_BASE="http://localhost:8082"
 
 # Detect which services are running
-GO_UP=false; RUST_UP=false; KT_UP=false
+GO_UP=false; RUST_UP=false; KT_UP=false; JAVA_UP=false
 curl -sf "$GO_BASE/health" >/dev/null 2>&1 && GO_UP=true
 curl -sf "$RUST_BASE/health" >/dev/null 2>&1 && RUST_UP=true
 curl -sf "$KOTLIN_BASE/health" >/dev/null 2>&1 && KT_UP=true
+curl -sf "$JAVA_BASE/health" >/dev/null 2>&1 && JAVA_UP=true
 
-echo "=== Services: Go=$GO_UP  Rust=$RUST_UP  Kotlin=$KT_UP ==="
+echo "=== Services: Go=$GO_UP  Rust=$RUST_UP  Kotlin=$KT_UP  Java=$JAVA_UP ==="
 echo ""
 
 # Seed: register + login to get tokens
@@ -56,6 +58,18 @@ if [ "$KT_UP" = true ]; then
       -d '{"username":"benchuser_kt","password":"Bench1234!"}' | jq -r '.data.accessToken // empty')
   fi
   echo "Kotlin token: ${KT_TOKEN:0:20}..."
+fi
+
+if [ "$JAVA_UP" = true ]; then
+  JAVA_TOKEN=$(curl -s -X POST "$JAVA_BASE/api/v1/auth/register" \
+    -H 'Content-Type: application/json' \
+    -d '{"username":"benchuser_java","password":"Bench1234!"}' | jq -r '.data.accessToken // empty')
+  if [ -z "$JAVA_TOKEN" ]; then
+    JAVA_TOKEN=$(curl -s -X POST "$JAVA_BASE/api/v1/auth/login" \
+      -H 'Content-Type: application/json' \
+      -d '{"username":"benchuser_java","password":"Bench1234!"}' | jq -r '.data.accessToken // empty')
+  fi
+  echo "Java token:   ${JAVA_TOKEN:0:20}..."
 fi
 
 echo ""
@@ -97,6 +111,10 @@ for CONCURRENCY in $CONCURRENCY_LEVELS; do
     echo "[Kotlin]"
     run_oha "Kotlin" "$KOTLIN_BASE/health" "GET" "$DURATION" "$CONCURRENCY"
   fi
+  if [ "$JAVA_UP" = true ]; then
+    echo "[Java]"
+    run_oha "Java" "$JAVA_BASE/health" "GET" "$DURATION" "$CONCURRENCY"
+  fi
 
   # Video list (DB read)
   echo "--- video_list (DB read) ---"
@@ -111,6 +129,10 @@ for CONCURRENCY in $CONCURRENCY_LEVELS; do
   if [ "$KT_UP" = true ]; then
     echo "[Kotlin]"
     run_oha "Kotlin" "$KOTLIN_BASE/api/v1/videos" "GET" "$DURATION" "$CONCURRENCY"
+  fi
+  if [ "$JAVA_UP" = true ]; then
+    echo "[Java]"
+    run_oha "Java" "$JAVA_BASE/api/v1/videos" "GET" "$DURATION" "$CONCURRENCY"
   fi
 
   echo ""

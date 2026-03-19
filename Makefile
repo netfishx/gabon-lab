@@ -1,9 +1,10 @@
 -include .env
-export DATABASE_URL REDIS_URL GO_PORT RUST_PORT KOTLIN_PORT
+export DATABASE_URL REDIS_URL GO_PORT RUST_PORT KOTLIN_PORT JAVA_PORT
 
 .PHONY: up down migrate migrate-down migrate-status seed \
-        dev-go dev-rust dev-kotlin build-go build-rust build-kotlin \
-        test-go test-rust test-kotlin lint-go lint-rust lint-kotlin clean
+        dev-go dev-rust dev-kotlin dev-java build-go build-rust build-kotlin build-java \
+        test-go test-rust test-kotlin test-java lint-go lint-rust lint-kotlin lint-java \
+        migrate-java clean
 
 # ─── Infrastructure ─────────────────────────────
 
@@ -32,7 +33,10 @@ migrate-go:
 migrate-rust:
 	cd rust && make migrate
 
-migrate: migrate-go migrate-rust
+migrate-java:
+	cd java && ./gradlew flywayMigrate
+
+migrate: migrate-go migrate-rust migrate-java
 
 # ─── Go ─────────────────────────────────────────
 
@@ -76,6 +80,20 @@ test-kotlin:
 lint-kotlin:
 	cd kotlin && ./gradlew build --no-daemon
 
+# ─── Java ──────────────────────────────────────
+
+dev-java:
+	cd java && ./gradlew bootRun --no-daemon
+
+build-java:
+	cd java && ./gradlew build --no-daemon
+
+test-java:
+	cd java && ./gradlew test --no-daemon
+
+lint-java:
+	cd java && ./gradlew spotlessCheck
+
 # ─── Benchmarks ─────────────────────────────────
 
 bench-oha:
@@ -89,6 +107,9 @@ bench-k6-rust:
 
 bench-k6-kotlin:
 	k6 run bench/k6-scenario.js --env BASE_URL=http://localhost:8090 --env PREFIX=/api/v1
+
+bench-k6-java:
+	k6 run bench/k6-scenario.js --env BASE_URL=http://localhost:8082 --env PREFIX=/api/v1
 
 bench-metrics:
 	bash bench/metrics.sh
