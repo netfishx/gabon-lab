@@ -1,9 +1,9 @@
 -include .env
-export DATABASE_URL REDIS_URL GO_PORT RUST_PORT
+export DATABASE_URL REDIS_URL GO_PORT RUST_PORT KOTLIN_PORT
 
 .PHONY: up down migrate migrate-down migrate-status seed \
-        dev-go dev-rust build-go build-rust test-go test-rust \
-        lint-go lint-rust clean
+        dev-go dev-rust dev-kotlin build-go build-rust build-kotlin \
+        test-go test-rust test-kotlin lint-go lint-rust lint-kotlin clean
 
 # ─── Infrastructure ─────────────────────────────
 
@@ -24,6 +24,7 @@ clean:
 	docker compose down -v
 
 # ─── Database (each manages its own migrations) ─
+# Note: Kotlin uses Flyway auto-migration on startup, no manual step needed.
 
 migrate-go:
 	cd go && make migrate
@@ -61,6 +62,20 @@ test-rust:
 lint-rust:
 	cd rust && make lint
 
+# ─── Kotlin ─────────────────────────────────────
+
+dev-kotlin:
+	cd kotlin && ./gradlew run --no-daemon
+
+build-kotlin:
+	cd kotlin && ./gradlew shadowJar --no-daemon
+
+test-kotlin:
+	cd kotlin && ./gradlew test --no-daemon
+
+lint-kotlin:
+	cd kotlin && ./gradlew build --no-daemon
+
 # ─── Benchmarks ─────────────────────────────────
 
 bench-oha:
@@ -71,6 +86,9 @@ bench-k6-go:
 
 bench-k6-rust:
 	k6 run bench/k6-scenario.js --env BASE_URL=http://localhost:3000 --env PREFIX=/api
+
+bench-k6-kotlin:
+	k6 run bench/k6-scenario.js --env BASE_URL=http://localhost:8090 --env PREFIX=/api/v1
 
 bench-metrics:
 	bash bench/metrics.sh

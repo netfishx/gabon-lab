@@ -15,6 +15,7 @@ import lab.gabon.route.userVideoRoutes
 import lab.gabon.route.videoRoutes
 import lab.gabon.service.AdminService
 import lab.gabon.service.AuthService
+import lab.gabon.service.ReportService
 import lab.gabon.service.SocialService
 import lab.gabon.service.TaskService
 import lab.gabon.service.UserService
@@ -28,6 +29,8 @@ fun Application.configureRouting(
     adminService: AdminService? = null,
     userService: UserService? = null,
     taskService: TaskService? = null,
+    reportService: ReportService? = null,
+    rateLimiter: RateLimiter? = null,
 ) {
     routing {
         get("/health") {
@@ -35,22 +38,56 @@ fun Application.configureRouting(
         }
 
         route("/api/v1") {
-            authRoutes(authService)
-            socialRoutes(socialService, customerRepo)
-            if (videoService != null) {
-                videoRoutes(videoService)
-                userVideoRoutes(videoService)
-            }
-            if (userService != null) {
-                userRoutes(userService)
-            }
-            if (taskService != null) {
-                taskRoutes(taskService)
+            if (rateLimiter != null) {
+                // Auth routes: 20/min by IP
+                rateLimit(rateLimiter, RateLimitConfig("auth", 20, keyType = KeyType.IP)) {
+                    authRoutes(authService)
+                }
+
+                // Public routes: 120/min by IP
+                rateLimit(rateLimiter, RateLimitConfig("pub", 120, keyType = KeyType.IP)) {
+                    socialRoutes(socialService, customerRepo)
+                    if (videoService != null) {
+                        videoRoutes(videoService)
+                        userVideoRoutes(videoService)
+                    }
+                }
+
+                // User routes: 200/min by customer_id
+                rateLimit(rateLimiter, RateLimitConfig("user", 200, keyType = KeyType.CUSTOMER_ID)) {
+                    if (userService != null) {
+                        userRoutes(userService)
+                    }
+                    if (taskService != null) {
+                        taskRoutes(taskService)
+                    }
+                }
+            } else {
+                // No rate limiter (e.g. in tests that don't need it)
+                authRoutes(authService)
+                socialRoutes(socialService, customerRepo)
+                if (videoService != null) {
+                    videoRoutes(videoService)
+                    userVideoRoutes(videoService)
+                }
+                if (userService != null) {
+                    userRoutes(userService)
+                }
+                if (taskService != null) {
+                    taskRoutes(taskService)
+                }
             }
         }
 
         if (adminService != null) {
-            adminRoutes(adminService)
+            if (rateLimiter != null) {
+                // Admin routes: 200/min by admin_id
+                rateLimit(rateLimiter, RateLimitConfig("admin", 200, keyType = KeyType.ADMIN_ID)) {
+                    adminRoutes(adminService, reportService)
+                }
+            } else {
+                adminRoutes(adminService, reportService)
+            }
         }
     }
 }

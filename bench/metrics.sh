@@ -1,9 +1,9 @@
 #!/bin/bash
-# Engineering metrics comparison: Go vs Rust
+# Engineering metrics comparison: Go vs Rust vs Kotlin
 set -e
 
 echo "============================================"
-echo "  ENGINEERING METRICS: Go vs Rust"
+echo "  ENGINEERING METRICS: Go vs Rust vs Kotlin"
 echo "============================================"
 echo ""
 
@@ -17,6 +17,9 @@ echo ""
 echo "[Rust]"
 tokei rust/ --sort code 2>/dev/null | tail -5
 echo ""
+echo "[Kotlin]"
+tokei kotlin/src/ --sort code 2>/dev/null | tail -5
+echo ""
 
 # 2. Build time
 echo "--- Build Time (clean) ---"
@@ -26,29 +29,35 @@ echo ""
 echo "[Rust]"
 (cd rust && cargo clean 2>/dev/null; time cargo build --release -p gabon-api 2>&1 | tail -1) 2>&1
 echo ""
+echo "[Kotlin]"
+(cd kotlin && ./gradlew clean --no-daemon 2>/dev/null; time ./gradlew shadowJar --no-daemon 2>&1 | tail -1) 2>&1
+echo ""
 
 # 3. Binary size
-echo "--- Binary Size ---"
+echo "--- Binary / JAR Size ---"
 (cd go && go build -o bin/api cmd/api/main.go 2>/dev/null)
-echo "[Go]  $(du -h go/bin/api | cut -f1)"
-echo "[Rust] $(du -h rust/target/release/gabon-api 2>/dev/null | cut -f1 || echo 'not built')"
+echo "[Go]    $(du -h go/bin/api | cut -f1)"
+echo "[Rust]  $(du -h rust/target/release/gabon-api 2>/dev/null | cut -f1 || echo 'not built')"
+echo "[Kotlin] $(du -h kotlin/build/libs/gabon-api.jar 2>/dev/null | cut -f1 || echo 'not built')"
 echo ""
 
 # 4. Docker image size (if built)
 echo "--- Docker Image Size ---"
-docker images --format "{{.Repository}}\t{{.Size}}" 2>/dev/null | grep -E "gabon" || echo "(not built — run 'make build-go && make build-rust' with Docker)"
+docker images --format "{{.Repository}}\t{{.Size}}" 2>/dev/null | grep -E "gabon" || echo "(not built — run docker build for each)"
 echo ""
 
 # 5. Dependency count
 echo "--- Dependency Count ---"
-echo "[Go]  $(cd go && go list -m all 2>/dev/null | wc -l | tr -d ' ') modules"
-echo "[Rust] $(cd rust && cargo metadata --format-version 1 2>/dev/null | jq '.packages | length') crates"
+echo "[Go]    $(cd go && go list -m all 2>/dev/null | wc -l | tr -d ' ') modules"
+echo "[Rust]  $(cd rust && cargo metadata --format-version 1 2>/dev/null | jq '.packages | length') crates"
+echo "[Kotlin] $(cd kotlin && ./gradlew dependencies --configuration runtimeClasspath --no-daemon 2>/dev/null | grep -c '--- ' || echo 'unknown') libraries"
 echo ""
 
 # 6. Test count
 echo "--- Test Count ---"
-echo "[Go]  $(cd go && go test ./... -v 2>&1 | grep -c '--- PASS\|--- FAIL') tests"
-echo "[Rust] $(cd rust && cargo test --workspace 2>&1 | grep -oE '[0-9]+ passed' | head -1 || echo 'unknown')"
+echo "[Go]    $(cd go && go test ./... -v 2>&1 | grep -c '--- PASS\|--- FAIL') tests"
+echo "[Rust]  $(cd rust && cargo test --workspace 2>&1 | grep -oE '[0-9]+ passed' | head -1 || echo 'unknown')"
+echo "[Kotlin] $(cd kotlin && ./gradlew test --no-daemon 2>&1 | grep -oE '[0-9]+ tests' | head -1 || echo 'unknown')"
 echo ""
 
 echo "============================================"

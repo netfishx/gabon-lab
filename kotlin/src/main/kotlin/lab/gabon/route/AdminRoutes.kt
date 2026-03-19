@@ -14,6 +14,7 @@ import lab.gabon.repository.AdminVideoListRow
 import lab.gabon.repository.AdminVideoRow
 import lab.gabon.repository.CustomerRow
 import lab.gabon.service.AdminService
+import lab.gabon.service.ReportService
 import lab.gabon.service.TokenResponse
 
 // ── Request DTOs ────────────────────────────────────────────
@@ -147,7 +148,7 @@ data class CustomerListDto(
 
 // ── Route Registration ──────────────────────────────────────
 
-fun Route.adminRoutes(adminService: AdminService) {
+fun Route.adminRoutes(adminService: AdminService, reportService: ReportService? = null) {
     route("/admin/v1") {
         // ── Public admin auth routes ──────────────────────
         route("/auth") {
@@ -354,6 +355,11 @@ fun Route.adminRoutes(adminService: AdminService) {
                     adminService.resetCustomerPassword(customerId, req.newPassword)
                     call.respond(HttpStatusCode.OK, JsonData.ok("password reset"))
                 }
+            }
+
+            // ── Reports ──────────────────────────────────
+            if (reportService != null) {
+                reportRoutes(reportService)
             }
         }
     }
