@@ -16,6 +16,30 @@ public class RedisConfig {
   }
 
   /**
+   * Lua script for atomic sliding-window rate limiting.
+   *
+   * <p>KEYS[1] = rate limit key<br>
+   * ARGV[1] = windowStart (min score to remove)<br>
+   * ARGV[2] = now (score for new member)<br>
+   * ARGV[3] = member (unique value)<br>
+   * ARGV[4] = TTL in seconds
+   *
+   * <p>Returns: current count after cleanup + insert
+   */
+  @Bean("rateLimitScript")
+  public RedisScript<Long> rateLimitScript() {
+    String lua =
+        """
+        redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', ARGV[1])
+        redis.call('ZADD', KEYS[1], ARGV[2], ARGV[3])
+        local count = redis.call('ZCARD', KEYS[1])
+        redis.call('EXPIRE', KEYS[1], ARGV[4])
+        return count
+        """;
+    return RedisScript.of(lua, Long.class);
+  }
+
+  /**
    * Lua CAS script for atomic refresh token rotation.
    *
    * <p>KEYS[1] = token:family:{familyId}<br>

@@ -1,6 +1,5 @@
 package lab.gabon.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.util.List;
 import lab.gabon.security.JwtAuthFilter;
@@ -8,12 +7,15 @@ import lab.gabon.security.JwtAuthFilter.PublicRoute;
 import lab.gabon.security.RateLimitFilter;
 import lab.gabon.service.JwtService;
 import lab.gabon.service.TokenStore;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import tools.jackson.databind.ObjectMapper;
 
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
@@ -78,8 +80,11 @@ public class WebConfig implements WebMvcConfigurer {
 
   @Bean
   public FilterRegistrationBean<RateLimitFilter> authRateLimit(
-      StringRedisTemplate redis, ObjectMapper mapper) {
-    var filter = new RateLimitFilter(redis, mapper, "auth", 20, Duration.ofMinutes(1), false);
+      StringRedisTemplate redis,
+      @Qualifier("rateLimitScript") RedisScript<Long> script,
+      ObjectMapper mapper) {
+    var filter =
+        new RateLimitFilter(redis, script, mapper, "auth", 20, Duration.ofMinutes(1), false);
     var reg = new FilterRegistrationBean<>(filter);
     reg.addUrlPatterns("/api/v1/auth/*", "/admin/v1/auth/*");
     reg.setOrder(5);
@@ -88,8 +93,11 @@ public class WebConfig implements WebMvcConfigurer {
 
   @Bean
   public FilterRegistrationBean<RateLimitFilter> publicRateLimit(
-      StringRedisTemplate redis, ObjectMapper mapper) {
-    var filter = new RateLimitFilter(redis, mapper, "pub", 120, Duration.ofMinutes(1), false);
+      StringRedisTemplate redis,
+      @Qualifier("rateLimitScript") RedisScript<Long> script,
+      ObjectMapper mapper) {
+    var filter =
+        new RateLimitFilter(redis, script, mapper, "pub", 120, Duration.ofMinutes(1), false);
     var reg = new FilterRegistrationBean<>(filter);
     reg.addUrlPatterns("/api/v1/*");
     reg.setOrder(6);
@@ -98,8 +106,11 @@ public class WebConfig implements WebMvcConfigurer {
 
   @Bean
   public FilterRegistrationBean<RateLimitFilter> apiRateLimit(
-      StringRedisTemplate redis, ObjectMapper mapper) {
-    var filter = new RateLimitFilter(redis, mapper, "user", 200, Duration.ofMinutes(1), true);
+      StringRedisTemplate redis,
+      @Qualifier("rateLimitScript") RedisScript<Long> script,
+      ObjectMapper mapper) {
+    var filter =
+        new RateLimitFilter(redis, script, mapper, "user", 200, Duration.ofMinutes(1), true);
     var reg = new FilterRegistrationBean<>(filter);
     reg.addUrlPatterns("/api/v1/*");
     reg.setOrder(20);
@@ -108,8 +119,11 @@ public class WebConfig implements WebMvcConfigurer {
 
   @Bean
   public FilterRegistrationBean<RateLimitFilter> adminRateLimit(
-      StringRedisTemplate redis, ObjectMapper mapper) {
-    var filter = new RateLimitFilter(redis, mapper, "admin", 200, Duration.ofMinutes(1), true);
+      StringRedisTemplate redis,
+      @Qualifier("rateLimitScript") RedisScript<Long> script,
+      ObjectMapper mapper) {
+    var filter =
+        new RateLimitFilter(redis, script, mapper, "admin", 200, Duration.ofMinutes(1), true);
     var reg = new FilterRegistrationBean<>(filter);
     reg.addUrlPatterns("/admin/v1/*");
     reg.setOrder(20);

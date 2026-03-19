@@ -2,7 +2,6 @@ package lab.gabon;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.Filter;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -29,6 +28,7 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Integration tests for 4 required concurrency scenarios. Uses Testcontainers for PostgreSQL and
@@ -46,21 +46,7 @@ class ConcurrencyIT {
   @TestConfiguration
   static class TestConfig {
 
-    /**
-     * Spring Boot 4.0 auto-configures tools.jackson.databind.json.JsonMapper but the app code
-     * (JwtAuthFilter, RateLimitFilter) depends on com.fasterxml.jackson.databind.ObjectMapper.
-     */
-    @Bean
-    ObjectMapper objectMapper() {
-      var mapper = new ObjectMapper();
-      mapper.findAndRegisterModules();
-      return mapper;
-    }
-
-    /**
-     * Disable all rate limit filters. The RateLimitFilter's pipelined Redis cast is incompatible
-     * with Spring Data Redis 4, and rate limiting would interfere with concurrency testing.
-     */
+    /** Disable all rate limit filters — rate limiting would interfere with concurrency testing. */
     @Bean
     FilterRegistrationBean<Filter> authRateLimit() {
       return disabledFilter();
@@ -125,7 +111,7 @@ class ConcurrencyIT {
 
   private HttpClient httpClient;
   private String baseUrl;
-  private final ObjectMapper json = new ObjectMapper();
+  private final JsonMapper json = JsonMapper.builder().build();
 
   private static final AtomicInteger SEQ = new AtomicInteger();
 
