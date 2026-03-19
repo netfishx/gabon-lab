@@ -21,10 +21,12 @@ import lab.gabon.plugin.configureRouting
 import lab.gabon.plugin.configureSerialization
 import lab.gabon.repository.CustomerRepo
 import lab.gabon.repository.CustomerRow
+import lab.gabon.repository.SocialRepo
 import lab.gabon.service.AuthService
 import lab.gabon.service.CasResult
 import lab.gabon.service.JwtService
 import lab.gabon.service.RedisTokenStore
+import lab.gabon.service.SocialService
 import io.mockk.*
 import kotlinx.datetime.Clock
 import kotlin.test.*
@@ -83,12 +85,14 @@ class AuthRoutesTest {
         customerRepo = mockk()
         tokenStore = mockk()
         authService = AuthService(customerRepo, jwtService, tokenStore)
+        val socialRepo = mockk<SocialRepo>()
+        val socialService = SocialService(socialRepo, customerRepo)
 
         application {
             configureSerialization()
             configureErrorHandling()
             configureAuthentication(jwtService, tokenStore)
-            configureRouting(authService)
+            configureRouting(authService, socialService, customerRepo)
         }
     }
 

@@ -12,11 +12,23 @@ import lab.gabon.plugin.configureAuthentication
 import lab.gabon.plugin.configureErrorHandling
 import lab.gabon.plugin.configureRouting
 import lab.gabon.plugin.configureSerialization
+import lab.gabon.repository.AdminUserRepo
+import lab.gabon.repository.AdminVideoRepo
 import lab.gabon.repository.CustomerRepo
+import lab.gabon.repository.PlayRecordRepo
+import lab.gabon.repository.SignInRepo
+import lab.gabon.repository.SocialRepo
+import lab.gabon.repository.TaskRepo
+import lab.gabon.repository.VideoRepo
+import lab.gabon.service.AdminService
 import lab.gabon.service.AuthService
 import lab.gabon.service.JwtService
 import lab.gabon.service.RedisTokenStore
+import lab.gabon.service.SocialService
 import lab.gabon.service.StorageService
+import lab.gabon.service.TaskService
+import lab.gabon.service.UserService
+import lab.gabon.service.VideoService
 
 @OptIn(ExperimentalLettuceCoroutinesApi::class)
 fun main() {
@@ -32,12 +44,24 @@ fun main() {
     val storageService = StorageService(config.s3)
     val customerRepo = CustomerRepo()
     val authService = AuthService(customerRepo, jwtService, tokenStore)
+    val socialRepo = SocialRepo()
+    val socialService = SocialService(socialRepo, customerRepo)
+    val videoRepo = VideoRepo()
+    val playRecordRepo = PlayRecordRepo()
+    val videoService = VideoService(videoRepo, playRecordRepo, storageService)
+    val adminUserRepo = AdminUserRepo()
+    val adminVideoRepo = AdminVideoRepo()
+    val adminService = AdminService(adminUserRepo, adminVideoRepo, customerRepo, jwtService, tokenStore)
+    val userService = UserService(customerRepo, storageService)
+    val taskRepo = TaskRepo()
+    val signInRepo = SignInRepo()
+    val taskService = TaskService(taskRepo, signInRepo)
 
     embeddedServer(Netty, port = config.port) {
         configureSerialization()
         configureErrorHandling()
         configureAuthentication(jwtService, tokenStore)
-        configureRouting(authService)
+        configureRouting(authService, socialService, customerRepo, videoService, adminService, userService, taskService)
 
         monitor.subscribe(ApplicationStopped) {
             storageService.close()

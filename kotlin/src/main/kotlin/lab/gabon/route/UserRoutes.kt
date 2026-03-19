@@ -1,0 +1,123 @@
+package lab.gabon.route
+
+import io.ktor.http.*
+import io.ktor.server.auth.*
+import io.ktor.server.request.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
+import kotlinx.serialization.Serializable
+import lab.gabon.model.JsonData
+import lab.gabon.plugin.customerPrincipal
+import lab.gabon.service.AvatarPresignResult
+import lab.gabon.service.MyProfile
+import lab.gabon.service.UserService
+
+// -- Request DTOs --
+
+@Serializable
+data class UpdateProfileRequest(
+    val name: String? = null,
+    val phone: String? = null,
+    val email: String? = null,
+    val signature: String? = null,
+)
+
+@Serializable
+data class AvatarPresignRequest(
+    val fileName: String,
+    val contentType: String,
+)
+
+@Serializable
+data class AvatarConfirmRequest(
+    val avatarUrl: String,
+)
+
+// -- Response DTOs --
+
+@Serializable
+data class MyProfileDto(
+    val id: Long,
+    val username: String,
+    val name: String?,
+    val phone: String?,
+    val email: String?,
+    val avatarUrl: String?,
+    val signature: String?,
+    val isVip: Boolean,
+    val diamondBalance: Long,
+    val lastLoginAt: String?,
+    val createdAt: String,
+)
+
+@Serializable
+data class AvatarPresignDto(
+    val uploadUrl: String,
+    val avatarUrl: String,
+)
+
+// -- Route Registration --
+
+fun Route.userRoutes(userService: UserService) {
+    authenticate("customer") {
+        route("/users/me") {
+            get("/profile") {
+                val principal = call.customerPrincipal()
+                val profile = userService.getMyProfile(principal.customerId)
+                call.respond(HttpStatusCode.OK, JsonData.ok(profile.toDto()))
+            }
+
+            put("/profile") {
+                val principal = call.customerPrincipal()
+                val req = call.receive<UpdateProfileRequest>()
+                val profile = userService.updateProfile(
+                    customerId = principal.customerId,
+                    name = req.name,
+                    phone = req.phone,
+                    email = req.email,
+                    signature = req.signature,
+                )
+                call.respond(HttpStatusCode.OK, JsonData.ok(profile.toDto()))
+            }
+
+            post("/avatar/upload-url") {
+                val principal = call.customerPrincipal()
+                val req = call.receive<AvatarPresignRequest>()
+                val result = userService.presignAvatarUpload(
+                    customerId = principal.customerId,
+                    fileName = req.fileName,
+                    contentType = req.contentType,
+                )
+                call.respond(HttpStatusCode.OK, JsonData.ok(result.toDto()))
+            }
+
+            post("/avatar/confirm") {
+                val principal = call.customerPrincipal()
+                val req = call.receive<AvatarConfirmRequest>()
+                userService.confirmAvatarUpload(principal.customerId, req.avatarUrl)
+                call.respond(HttpStatusCode.OK, JsonData.ok("avatar updated"))
+            }
+        }
+    }
+}
+
+// -- Extension mappers --
+
+private fun MyProfile.toDto(): MyProfileDto = MyProfileDto(
+    id = id,
+    username = username,
+    name = name,
+    phone = phone,
+    email = email,
+    avatarUrl = avatarUrl,
+    signature = signature,
+    isVip = isVip,
+    diamondBalance = diamondBalance,
+    lastLoginAt = lastLoginAt,
+    createdAt = createdAt,
+)
+
+private fun AvatarPresignResult.toDto(): AvatarPresignDto = AvatarPresignDto(
+    uploadUrl = uploadUrl,
+    avatarUrl = avatarUrl,
+)
