@@ -46,7 +46,11 @@ public class WebConfig implements WebMvcConfigurer {
                 new PublicRoute("POST", "/videos/*/play-click"),
                 new PublicRoute("POST", "/videos/*/play-valid"),
                 // User videos — public
-                new PublicRoute("GET", "/users/*/videos")),
+                new PublicRoute("GET", "/users/*/videos"),
+                // User profile + social — optional auth
+                new PublicRoute("GET", "/users/*"),
+                new PublicRoute("GET", "/users/*/following"),
+                new PublicRoute("GET", "/users/*/followers")),
             "/api/v1");
     var reg = new FilterRegistrationBean<>(filter);
     reg.addUrlPatterns("/api/v1/*");
