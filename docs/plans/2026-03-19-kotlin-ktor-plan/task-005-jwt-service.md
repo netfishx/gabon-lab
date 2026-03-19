@@ -12,8 +12,8 @@ Key decisions:
 - **JwtService** (`service/JwtService.kt`): implement a class that handles token generation and parsing for both domains.
 
   Generation:
-  - `fun generateCustomerTokens(customerId: Long): TokenPair` — produce access + refresh tokens with claims: `sub` = customerId (string), `iss` = "gabon-service", `aud` = "customer", `jti` = random UUID, `token_type` = "access" or "refresh", `family_id` = random UUID (shared between the pair), `kid` = "customer-v1". Sign with HS256 using JWT_CUSTOMER_SECRET. Access token TTL from config (e.g., 15min), refresh token TTL from config (e.g., 7d).
-  - `fun generateAdminTokens(adminId: Long, role: String): TokenPair` — same structure but `iss` = "gabon-admin", `aud` = "admin", `kid` = "admin-v1", extra claim `role` = role string. Sign with JWT_ADMIN_SECRET.
+  - `fun generateCustomerTokens(customerId: Long): TokenPair` — produce access + refresh tokens with claims: `sub` = customerId (string), `iss` = "gabon-service", `aud` = "customer", `jti` = random UUID, `token_type` = "access" or "refresh", `family_id` = random UUID (shared between the pair), `kid` = JWT_CURRENT_KID from config (e.g., "key-2026-03"). Sign with HS256 using JWT_CUSTOMER_SECRET. Access token TTL = JWT_CUSTOMER_ACCESS_TTL, refresh token TTL = JWT_CUSTOMER_REFRESH_TTL.
+  - `fun generateAdminTokens(adminId: Long, role: String): TokenPair` — same structure but `iss` = "gabon-admin", `aud` = "admin", `kid` = JWT_CURRENT_KID (same config value, shared across domains for key rotation), extra claim `role` = role string. Sign with JWT_ADMIN_SECRET. TTLs from JWT_ADMIN_ACCESS_TTL / JWT_ADMIN_REFRESH_TTL.
   - `TokenPair` is a data class with `accessToken: String`, `refreshToken: String`, `familyId: String`, `accessJti: String`, `refreshJti: String`.
 
   Parsing:

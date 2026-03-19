@@ -48,18 +48,9 @@ Feature: User Profile
     And alice's avatar_url is updated
 
   # --- Public Profile ---
-
-  Scenario: Get another user's public profile
-    Given user "bob" (id=2) exists with 10 following and 5 followers
-    When I GET /api/v1/users/2 without auth
-    Then the response status is 200
-    And the response contains id, username, name, avatar_url, signature,
-        is_vip, following_count=10, follower_count=5, follow_status=0
-
-  Scenario: Get nonexistent user profile
-    When I GET /api/v1/users/999999
-    Then the response status is 404
-    And the error code is "NOT_FOUND"
+  # NOTE: "Get another user's public profile" and "Get nonexistent user profile"
+  # scenarios are tested in Task 010 (Social), because GET /api/v1/users/{userId}
+  # is implemented there (to avoid circular dependency with follow_status).
 ```
 
 ## Description
@@ -68,17 +59,13 @@ Write tests covering all BDD scenarios from Feature 10 (User Profile). This is t
 
 Test structure:
 
-- **ProfileRoutesTest.kt**: Integration tests using Ktor `testApplication`. Create test users via auth register. Set up follow relationships for public profile tests (to verify following_count, follower_count, follow_status).
+- **ProfileRoutesTest.kt**: Integration tests using Ktor `testApplication`. Create test users via auth register.
 
-Key test concerns:
-- Get my profile: verify 200 with all expected fields (id, username, name, phone, email, avatar_url, signature, is_vip, diamond_balance, last_login_at, created_at). This returns more data than GET /me (auth endpoint) because it includes email, diamond_balance, signature.
+Key test concerns (4 scenarios — public profile scenarios are in Task 010):
+- Get my profile: verify 200 with all expected fields (id, username, name, phone, email, avatar_url, signature, is_vip, diamond_balance, last_login_at, created_at).
 - Update profile: verify partial update works (only provided fields change). Verify empty string does NOT overwrite existing value (COALESCE NULLIF pattern). Verify response reflects updated fields.
-- Avatar presign: verify 200 with uploadUrl and avatarUrl. The URL should be a valid presigned S3 URL. avatarUrl is the permanent URL after upload.
+- Avatar presign: verify 200 with uploadUrl and avatarUrl.
 - Avatar confirm: verify 200 and avatar_url updated in the database. Subsequent GET profile should reflect new avatar.
-- Public profile: verify 200 with public fields only (no email, no diamond_balance). Verify following_count and follower_count are correct. Verify follow_status=0 for unauthenticated. If authenticated, verify correct follow_status relative to viewer.
-- Nonexistent user: verify 404 with NOT_FOUND error code.
-
-Test data setup: create users with known follow relationships using direct DB inserts or the social follow endpoint (if available from Task 010).
 
 ## Files
 
@@ -92,4 +79,4 @@ cd kotlin && ./gradlew test --tests '*Profile*'
 
 - All tests compile successfully
 - All tests FAIL (Red phase) because UserService and profile routes do not exist yet
-- Test count matches BDD scenario count (6 scenarios minimum)
+- Test count matches BDD scenario count (4 scenarios — public profile scenarios are in Task 010)

@@ -199,12 +199,12 @@ tasks:
 | Feature 2: Token Refresh and Security | 007 | 7 |
 | Feature 3: Video Management | 008 | 16 |
 | Feature 4: Like System | 009 | 8 |
-| Feature 5: Social System | 010 | 17 |
+| Feature 5: Social System | 010 | 19 (17 social + 2 public profile) |
 | Feature 6: Task System | 012 | 12 |
 | Feature 7: Daily Sign-In | 012 | 5 |
 | Feature 8: Admin Video Review | 013 | 17 |
 | Feature 9: Rate Limiting | 015 | 5 |
-| Feature 10: User Profile | 011 | 6 |
+| Feature 10: User Profile | 011 (private) + 010 (public) | 4 + 2 |
 | Feature 11: Admin Reports | 014 | 3 |
 | **Total** | | **~112** |
 

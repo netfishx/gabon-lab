@@ -13,11 +13,11 @@ Key decisions:
 
 - **TokenStore** (`service/TokenStore.kt`): implement `class RedisTokenStore(private val redis: RedisCoroutinesCommands<String, String>)` with these operations:
 
-  - `suspend fun setBlacklist(jti: String, ttl: Duration)` — SET key `blacklist:{jti}` with value `"1"` and EX ttl in seconds. Used when logging out or rotating refresh tokens to invalidate old access tokens.
+  - `suspend fun setBlacklist(jti: String, ttl: Duration)` — SET key `token:blacklist:{jti}` with value `"1"` and EX ttl in seconds. Used when logging out or rotating refresh tokens to invalidate old access tokens.
 
-  - `suspend fun isBlacklisted(jti: String): Boolean` — EXISTS key `blacklist:{jti}`, return true if > 0.
+  - `suspend fun isBlacklisted(jti: String): Boolean` — EXISTS key `token:blacklist:{jti}`, return true if > 0.
 
-  - `suspend fun setFamily(familyId: String, userId: Long, currentJti: String, ttl: Duration)` — SET key `family:{familyId}` with value `"{userId}:{currentJti}"` and EX ttl. Creates a new refresh token family.
+  - `suspend fun setFamily(familyId: String, userId: Long, currentJti: String, ttl: Duration)` — SET key `token:token:family:{familyId}` with value `"{userId}:{currentJti}"` and EX ttl. Creates a new refresh token family.
 
   - `suspend fun casFamily(familyId: String, expectedJti: String, newJti: String): CasResult` — execute a Lua script atomically:
     ```
@@ -31,7 +31,7 @@ Key decisions:
     ```
     Return a sealed interface `CasResult` with variants `Success(userId: Long)`, `Missing`, `Conflict`. Use Lettuce's `eval()` with script caching (EVALSHA with fallback to EVAL).
 
-  - `suspend fun deleteFamily(familyId: String)` — DEL key `family:{familyId}`. Used on logout to invalidate the entire refresh token family.
+  - `suspend fun deleteFamily(familyId: String)` — DEL key `token:family:{familyId}`. Used on logout to invalidate the entire refresh token family.
 
 - **Lifecycle**: register Redis client shutdown in Ktor's `environment.monitor.subscribe(ApplicationStopped)` or use a similar hook to ensure clean disconnection.
 
@@ -44,6 +44,6 @@ Key decisions:
 
 1. `./gradlew build` compiles without errors
 2. With Redis running (`make up`), start the app — no Redis connection errors in logs
-3. Test blacklist: call `setBlacklist("test-jti", 60s)`, then `isBlacklisted("test-jti")` returns true, `isBlacklisted("other-jti")` returns false
-4. Test family lifecycle: `setFamily("fam1", 42, "jti-a", 300s)` succeeds, `casFamily("fam1", "jti-a", "jti-b")` returns `Success(42)`, `casFamily("fam1", "jti-a", "jti-c")` returns `Conflict` (expected jti-a but current is jti-b), `deleteFamily("fam1")` then `casFamily("fam1", "jti-b", "jti-d")` returns `Missing`
+3. Test blacklist: call `setBlacklist("test-jti", 60s)`, verify Redis key `token:blacklist:test-jti` exists, `isBlacklisted("test-jti")` returns true, `isBlacklisted("other-jti")` returns false
+4. Test family lifecycle: `setFamily("fam1", 42, "jti-a", 300s)` succeeds (Redis key `token:family:fam1`), `casFamily("fam1", "jti-a", "jti-b")` returns `Success(42)`, `casFamily("fam1", "jti-a", "jti-c")` returns `Conflict` (expected jti-a but current is jti-b), `deleteFamily("fam1")` then `casFamily("fam1", "jti-b", "jti-d")` returns `Missing`
 5. After app shutdown, verify Redis connection is cleanly closed (no error logs, Lettuce shutdown messages visible)

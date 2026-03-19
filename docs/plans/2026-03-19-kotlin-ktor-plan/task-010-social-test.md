@@ -117,6 +117,20 @@ Feature: Social System
     When I GET /api/v1/users/{bob_id}/followers
     Then the response status is 200
     And the response contains 3 items
+
+  # --- Public Profile (from Feature 10, implemented here to avoid circular dep) ---
+
+  Scenario: Get another user's public profile
+    Given user "bob" (id=2) exists with 10 following and 5 followers
+    When I GET /api/v1/users/2 without auth
+    Then the response status is 200
+    And the response contains id, username, name, avatar_url, signature,
+        is_vip, following_count=10, follower_count=5, follow_status=0
+
+  Scenario: Get nonexistent user profile
+    When I GET /api/v1/users/999999
+    Then the response status is 404
+    And the error code is "NOT_FOUND"
 ```
 
 ## Description
